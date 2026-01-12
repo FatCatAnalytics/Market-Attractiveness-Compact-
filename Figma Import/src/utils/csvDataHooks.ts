@@ -1,5 +1,5 @@
 // Custom hooks for fetching data from CSV files
-// These replace the Supabase API calls in components
+// React hooks and functions for fetching CSV data
 
 import { useState, useEffect } from 'react';
 import { csvDataService } from './csvDataService';

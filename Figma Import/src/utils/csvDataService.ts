@@ -1,4 +1,4 @@
-// CSV Data Service - Replaces Supabase database calls with local CSV files
+// CSV Data Service - Loads and parses local CSV files
 
 import { SummaryData, MSAData, OpportunityData } from "../types";
 
