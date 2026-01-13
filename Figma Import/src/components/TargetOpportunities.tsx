@@ -5,7 +5,7 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Badge } from "./ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from "recharts";
-import { Search, Target, TrendingUp, Loader2, Check, ChevronsUpDown } from "lucide-react";
+import { Search, Target, TrendingUp, Loader2, Check, ChevronsUpDown, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "./ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
@@ -100,6 +100,9 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
     market: OpportunityData[];
     deposits: DepositData[];
   } | null>(null);
+  
+  // State for expandable rows
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   // Fetch filter buckets on mount
   useEffect(() => {
@@ -835,6 +838,21 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
           
           const regionCount = regionalData.length;
           
+          // Calculate MSA-level breakdown for expandable rows
+          const msaBreakdown = providerOpps.map(opp => {
+            const marketShare = parseFloat(String(opp["Market Share"] || 0));
+            const marketSize = parseFloat(String(opp["Market Size"] || 0));
+            const franchiseShareDollars = marketShare * marketSize;
+            const msaMarketSharePct = totalNationalMarketSize === 0 ? 0 : (franchiseShareDollars / totalNationalMarketSize) * 100;
+            
+            return {
+              msa: opp.MSA,
+              franchiseShareDollars,
+              marketSharePct: msaMarketSharePct,
+              localMarketShare: marketShare * 100, // Provider's share within this MSA
+            };
+          }).sort((a, b) => b.franchiseShareDollars - a.franchiseShareDollars);
+          
           return {
             provider,
             msaCount,
@@ -846,7 +864,8 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
             revenueByAttractivenessPercent,
             customerSatisfactionScore,
             regionCount,
-            regionalData
+            regionalData,
+            msaBreakdown
           };
         });
         
@@ -1129,9 +1148,29 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                       })}
                     </tr>
                     
-                    {/* National Market Share (%) Row */}
-                    <tr className="border-b hover:bg-muted/50 transition-colors">
-                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm">National Market Share (%)</td>
+                    {/* National Market Share (%) Row - Expandable */}
+                    <tr 
+                      className="border-b hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => {
+                        const newExpanded = new Set(expandedRows);
+                        if (newExpanded.has('marketShare')) {
+                          newExpanded.delete('marketShare');
+                        } else {
+                          newExpanded.add('marketShare');
+                        }
+                        setExpandedRows(newExpanded);
+                      }}
+                    >
+                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm">
+                        <div className="flex items-center gap-2">
+                          {expandedRows.has('marketShare') ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span>National Market Share (%)</span>
+                        </div>
+                      </td>
                       {providerAggregates.map((agg, idx) => (
                         <td key={idx} className="py-3 px-4 text-center border-l font-medium">
                           {agg.nationalMarketSharePct.toFixed(2)}%
@@ -1139,15 +1178,163 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                       ))}
                     </tr>
                     
-                    {/* Total Franchise Share ($) Row */}
-                    <tr className="border-b hover:bg-muted/50 transition-colors">
-                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm">Total Franchise Share ($)</td>
+                    {/* MSA Breakdown for National Market Share - shown when expanded */}
+                    {expandedRows.has('marketShare') && (() => {
+                      // Get all unique MSAs across all selected providers
+                      const allMSAs = new Set<string>();
+                      providerAggregates.forEach(agg => {
+                        agg.msaBreakdown.forEach(msa => allMSAs.add(msa.msa));
+                      });
+                      
+                      // Count how many providers have each MSA
+                      const msaCounts = new Map<string, number>();
+                      allMSAs.forEach(msa => {
+                        let count = 0;
+                        providerAggregates.forEach(agg => {
+                          if (agg.msaBreakdown.some(m => m.msa === msa)) count++;
+                        });
+                        msaCounts.set(msa, count);
+                      });
+                      
+                      // Sort MSAs: common ones first (by count desc), then by total value
+                      const sortedMSAs = Array.from(allMSAs).sort((a, b) => {
+                        const countDiff = (msaCounts.get(b) || 0) - (msaCounts.get(a) || 0);
+                        if (countDiff !== 0) return countDiff;
+                        // Secondary sort by max value across providers
+                        const maxA = Math.max(...providerAggregates.map(agg => 
+                          agg.msaBreakdown.find(m => m.msa === a)?.marketSharePct || 0
+                        ));
+                        const maxB = Math.max(...providerAggregates.map(agg => 
+                          agg.msaBreakdown.find(m => m.msa === b)?.marketSharePct || 0
+                        ));
+                        return maxB - maxA;
+                      });
+                      
+                      const providerCount = providerAggregates.length;
+                      
+                      return sortedMSAs.slice(0, 20).map((msa, msaIdx) => {
+                        const isCommon = (msaCounts.get(msa) || 0) === providerCount && providerCount > 1;
+                        return (
+                          <tr 
+                            key={`msa-share-${msaIdx}`} 
+                            className={`border-b transition-colors text-xs ${isCommon ? 'bg-blue-50/50 dark:bg-blue-950/20' : 'bg-muted/10'}`}
+                          >
+                            <td className="py-2 px-4 pl-10 bg-muted/20 sticky left-0 z-10">
+                              <div className="flex items-center gap-2">
+                                {isCommon && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-500" title="Common MSA" />
+                                )}
+                                <span className="text-muted-foreground truncate max-w-[200px]" title={msa}>
+                                  {msa.replace(/^[A-Z]{2}(-[A-Z]{2})*-/, '')}
+                                </span>
+                              </div>
+                            </td>
+                            {providerAggregates.map((agg, idx) => {
+                              const msaData = agg.msaBreakdown.find(m => m.msa === msa);
+                              return (
+                                <td key={idx} className="py-2 px-4 text-center border-l text-muted-foreground">
+                                  {msaData ? `${msaData.marketSharePct.toFixed(3)}%` : '—'}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      });
+                    })()}
+                    
+                    {/* Total Franchise Share ($) Row - Expandable */}
+                    <tr 
+                      className="border-b hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => {
+                        const newExpanded = new Set(expandedRows);
+                        if (newExpanded.has('franchiseShare')) {
+                          newExpanded.delete('franchiseShare');
+                        } else {
+                          newExpanded.add('franchiseShare');
+                        }
+                        setExpandedRows(newExpanded);
+                      }}
+                    >
+                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm">
+                        <div className="flex items-center gap-2">
+                          {expandedRows.has('franchiseShare') ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span>Total Franchise Share ($)</span>
+                        </div>
+                      </td>
                       {providerAggregates.map((agg, idx) => (
                         <td key={idx} className="py-3 px-4 text-center border-l">
                           {formatCurrency(agg.totalFranchiseShareDollars)}
                         </td>
                       ))}
                     </tr>
+                    
+                    {/* MSA Breakdown for Franchise Share - shown when expanded */}
+                    {expandedRows.has('franchiseShare') && (() => {
+                      // Get all unique MSAs across all selected providers
+                      const allMSAs = new Set<string>();
+                      providerAggregates.forEach(agg => {
+                        agg.msaBreakdown.forEach(msa => allMSAs.add(msa.msa));
+                      });
+                      
+                      // Count how many providers have each MSA
+                      const msaCounts = new Map<string, number>();
+                      allMSAs.forEach(msa => {
+                        let count = 0;
+                        providerAggregates.forEach(agg => {
+                          if (agg.msaBreakdown.some(m => m.msa === msa)) count++;
+                        });
+                        msaCounts.set(msa, count);
+                      });
+                      
+                      // Sort MSAs: common ones first (by count desc), then by total value
+                      const sortedMSAs = Array.from(allMSAs).sort((a, b) => {
+                        const countDiff = (msaCounts.get(b) || 0) - (msaCounts.get(a) || 0);
+                        if (countDiff !== 0) return countDiff;
+                        // Secondary sort by max value across providers
+                        const maxA = Math.max(...providerAggregates.map(agg => 
+                          agg.msaBreakdown.find(m => m.msa === a)?.franchiseShareDollars || 0
+                        ));
+                        const maxB = Math.max(...providerAggregates.map(agg => 
+                          agg.msaBreakdown.find(m => m.msa === b)?.franchiseShareDollars || 0
+                        ));
+                        return maxB - maxA;
+                      });
+                      
+                      const providerCount = providerAggregates.length;
+                      
+                      return sortedMSAs.slice(0, 20).map((msa, msaIdx) => {
+                        const isCommon = (msaCounts.get(msa) || 0) === providerCount && providerCount > 1;
+                        return (
+                          <tr 
+                            key={`msa-dollars-${msaIdx}`} 
+                            className={`border-b transition-colors text-xs ${isCommon ? 'bg-green-50/50 dark:bg-green-950/20' : 'bg-muted/10'}`}
+                          >
+                            <td className="py-2 px-4 pl-10 bg-muted/20 sticky left-0 z-10">
+                              <div className="flex items-center gap-2">
+                                {isCommon && (
+                                  <span className="w-2 h-2 rounded-full bg-green-500" title="Common MSA" />
+                                )}
+                                <span className="text-muted-foreground truncate max-w-[200px]" title={msa}>
+                                  {msa.replace(/^[A-Z]{2}(-[A-Z]{2})*-/, '')}
+                                </span>
+                              </div>
+                            </td>
+                            {providerAggregates.map((agg, idx) => {
+                              const msaData = agg.msaBreakdown.find(m => m.msa === msa);
+                              return (
+                                <td key={idx} className="py-2 px-4 text-center border-l text-muted-foreground">
+                                  {msaData ? formatCurrency(msaData.franchiseShareDollars) : '—'}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      });
+                    })()}
                     
                     {/* Total Market Share at Risk ($) Row */}
                     <tr className="border-b hover:bg-muted/50 transition-colors">
