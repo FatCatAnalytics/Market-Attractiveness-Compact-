@@ -15,9 +15,12 @@ import { applyGlobalFilters } from "../utils/applyGlobalFilters";
 import { fetchFilterBuckets, fetchMSADetails, fetchAllOpportunitiesRaw } from "../utils/csvDataHooks";
 import { USAMap } from "./USAMap";
 import { MSADetailView } from "./MSADetailView";
+import { MSAEconomicProfile, MSAEconomicProfileCompact } from "./MSAEconomicProfile";
 import { OpportunitiesTable } from "./OpportunityTable";
 import { MSACompetitiveTable } from "./MSACompetitiveTable";
 import { SelectedProvidersPanel } from "./SelectedProvidersPanel";
+import { useMSAEconomics, fetchMSAEconomics } from "../utils/csvDataHooks";
+import { MSAEconomicsData } from "../utils/csvDataService";
 
 interface MSAData {
   MSA: string;
@@ -88,6 +91,40 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
     marketSize?: { range: { min: number; max: number } };
     revenuePerCompany?: { range: { min: number; max: number } };
   }>({});
+  const [msaEconomicsMap, setMsaEconomicsMap] = useState<Record<string, MSAEconomicsData>>({});
+
+  // Get the selected MSA name when exactly one MSA is selected
+  const selectedMSAName = selectedForComparison.size === 1 
+    ? Array.from(selectedForComparison)[0] 
+    : null;
+  
+  // Fetch MSA economics data when a single MSA is selected
+  const { economics: msaEconomics } = useMSAEconomics(selectedMSAName);
+
+  // Fetch economics data for all selected MSAs (for comparison view)
+  useEffect(() => {
+    const fetchAllEconomics = async () => {
+      const msaNames = Array.from(selectedForComparison);
+      const newEconomicsMap: Record<string, MSAEconomicsData> = {};
+      
+      await Promise.all(
+        msaNames.map(async (msaName) => {
+          const economics = await fetchMSAEconomics(msaName);
+          if (economics) {
+            newEconomicsMap[msaName] = economics;
+          }
+        })
+      );
+      
+      setMsaEconomicsMap(newEconomicsMap);
+    };
+
+    if (selectedForComparison.size > 0) {
+      fetchAllEconomics();
+    } else {
+      setMsaEconomicsMap({});
+    }
+  }, [selectedForComparison]);
 
   // Fetch filter buckets to properly apply global filters
   useEffect(() => {
@@ -466,6 +503,14 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
         onToggleSelection={toggleComparison}
       />
 
+      {/* MSA Economic Profile - shown when a single MSA is selected */}
+      {selectedForComparison.size === 1 && msaEconomics && selectedMSAName && (
+        <MSAEconomicProfile 
+          economics={msaEconomics} 
+          msaName={selectedMSAName} 
+        />
+      )}
+
       {/* Detail View (Single Selection) */}
       {selectedForComparison.size === 1 && (() => {
         const msaName = Array.from(selectedForComparison)[0];
@@ -626,6 +671,13 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
                             </tr>
                           </tbody>
                         </table>
+                        
+                        {/* Economic Indicators (Compact) */}
+                        {msaEconomicsMap[msa.MSA] && (
+                          <div className="mt-3">
+                            <MSAEconomicProfileCompact economics={msaEconomicsMap[msa.MSA]} />
+                          </div>
+                        )}
                         
                         {/* Competitive Landscape Table */}
                         <div className="mt-4 pt-4 border-t">

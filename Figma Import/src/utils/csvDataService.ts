@@ -72,9 +72,24 @@ interface OpportunityRow {
   Attractiveness_Category?: string;
 }
 
+export interface MSAEconomicsData {
+  MSA: string;
+  unemployment2023: number;
+  unemployment2024: number;
+  unemploymentChange: number;
+  gdp: number;
+  gdpGrowth: number;
+  perCapitaIncome: number;
+  incomeGrowth: number;
+  population2023: number;
+  population2024: number;
+  populationGrowth: number;
+}
+
 class CSVDataService {
   private attractivenessData: AttractivenessRow[] = [];
   private opportunityData: OpportunityRow[] = [];
+  private economicsData: MSAEconomicsData[] = [];
   private dataLoaded = false;
   private loadingPromise: Promise<void> | null = null;
 
@@ -160,9 +175,10 @@ class CSVDataService {
     try {
       console.log('CSVDataService: Starting to load CSV files...');
       
-      const [attractivenessResponse, opportunityResponse] = await Promise.all([
+      const [attractivenessResponse, opportunityResponse, economicsResponse] = await Promise.all([
         fetch('/attractivenes.csv'),
-        fetch('/opportunity.csv')
+        fetch('/opportunity.csv'),
+        fetch('/msa_economics.csv')
       ]);
 
       if (!attractivenessResponse.ok) {
@@ -172,13 +188,20 @@ class CSVDataService {
         throw new Error(`Failed to load opportunity.csv: ${opportunityResponse.status}`);
       }
 
-      const [attractivenessText, opportunityText] = await Promise.all([
+      const [attractivenessText, opportunityText, economicsText] = await Promise.all([
         attractivenessResponse.text(),
-        opportunityResponse.text()
+        opportunityResponse.text(),
+        economicsResponse.ok ? economicsResponse.text() : ''
       ]);
 
       this.attractivenessData = this.parseCSV<AttractivenessRow>(attractivenessText);
       this.opportunityData = this.parseCSV<OpportunityRow>(opportunityText);
+      
+      // Parse economics data
+      if (economicsText) {
+        this.economicsData = this.parseEconomicsCSV(economicsText);
+        console.log(`CSVDataService: Loaded ${this.economicsData.length} economics records`);
+      }
 
       console.log(`CSVDataService: Loaded ${this.attractivenessData.length} attractiveness records and ${this.opportunityData.length} opportunity records`);
 
@@ -189,6 +212,45 @@ class CSVDataService {
     } finally {
       this.loadingPromise = null;
     }
+  }
+
+  // Parse economics CSV with specific column mapping
+  // Columns: MSA,Unemp_2023,Unemp_2024,GDP_K,GDP_YoY,Per_Capita_Income,Income_YoY,Pop_2023,Pop_2024
+  private parseEconomicsCSV(csvText: string): MSAEconomicsData[] {
+    const lines = csvText.trim().split('\n');
+    if (lines.length <= 1) return [];
+
+    const data: MSAEconomicsData[] = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const values = this.parseCSVLine(lines[i]);
+      if (values.length < 9) continue;
+
+      const unemployment2023 = parseFloat(values[1]) || 0;
+      const unemployment2024 = parseFloat(values[2]) || 0;
+      const population2023 = parseFloat(values[7]) || 0;
+      const population2024 = parseFloat(values[8]) || 0;
+      const gdpYoY = parseFloat(values[4]) || 0;
+      const incomeYoY = parseFloat(values[6]) || 0;
+
+      data.push({
+        MSA: values[0]?.trim() || '',
+        unemployment2023,
+        unemployment2024,
+        unemploymentChange: unemployment2024 - unemployment2023,
+        gdp: parseFloat(values[3]) || 0, // GDP in thousands
+        gdpGrowth: gdpYoY < 1 ? gdpYoY * 100 : gdpYoY, // Convert decimal to percentage if needed
+        perCapitaIncome: parseFloat(values[5]) || 0,
+        incomeGrowth: incomeYoY < 1 ? incomeYoY * 100 : incomeYoY, // Convert decimal to percentage if needed
+        population2023,
+        population2024,
+        populationGrowth: population2023 > 0 
+          ? ((population2024 - population2023) / population2023) * 100 
+          : 0,
+      });
+    }
+
+    return data;
   }
 
   // Get summary statistics
@@ -479,6 +541,61 @@ class CSVDataService {
         Provider: row.Provider,
         "Market Share": row["Market Share"],
       }));
+  }
+
+  // Get MSA economics data by MSA name
+  async getMSAEconomics(msaName: string): Promise<MSAEconomicsData | null> {
+    await this.loadData();
+    
+    // Try exact match first
+    let economics = this.economicsData.find(row => row.MSA === msaName);
+    if (economics) return economics;
+    
+    // Extract state codes and city name from the MSA name
+    // Examples: "NC-SC-Charlotte-Concord-Gastonia" -> states: [NC, SC], city: Charlotte
+    //           "GA-Atlanta-Sandy Springs-Roswell" -> states: [GA], city: Atlanta
+    const msaParts = msaName.split('-');
+    const stateCodes: string[] = [];
+    let cityIndex = 0;
+    
+    // State codes are 2-letter uppercase at the beginning
+    for (let i = 0; i < msaParts.length; i++) {
+      const part = msaParts[i].trim();
+      if (part.length === 2 && part === part.toUpperCase() && /^[A-Z]+$/.test(part)) {
+        stateCodes.push(part);
+        cityIndex = i + 1;
+      } else {
+        break;
+      }
+    }
+    
+    // Get the city name (first non-state part)
+    const cityName = msaParts[cityIndex]?.toLowerCase() || '';
+    
+    if (cityName.length > 0) {
+      // Try to find a match where the economics MSA contains the city name
+      // and shares at least one state code
+      economics = this.economicsData.find(row => {
+        const rowParts = row.MSA.split('-');
+        const rowState = rowParts[0];
+        const rowCity = rowParts[1]?.toLowerCase() || '';
+        
+        // Check if any of the state codes match and city names are similar
+        const stateMatches = stateCodes.includes(rowState);
+        const cityMatches = rowCity.includes(cityName.substring(0, 4)) || 
+                           cityName.includes(rowCity.substring(0, 4));
+        
+        return stateMatches && cityMatches;
+      });
+    }
+    
+    return economics || null;
+  }
+
+  // Get all MSA economics data
+  async getAllMSAEconomics(): Promise<MSAEconomicsData[]> {
+    await this.loadData();
+    return this.economicsData;
   }
 
   // Helper to map opportunity row to OpportunityData type

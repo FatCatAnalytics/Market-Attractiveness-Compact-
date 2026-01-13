@@ -495,11 +495,14 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
     <div className="space-y-4">
       {/* Filters Section */}
       <Card className="p-4">
-        <h3 className="mb-4">Filters</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">Select Franchise or MSA to analyze</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Franchise Filter */}
           <div className="space-y-2">
-            <Label>Franchise</Label>
+            <Label className="text-xs text-muted-foreground">Franchise</Label>
             <Popover open={providerComboboxOpen} onOpenChange={setProviderComboboxOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -573,44 +576,9 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
             )}
           </div>
 
-          {/* Category Filter */}
-          <div className="space-y-2">
-            <Label>Opportunity</Label>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger>
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="Excellent">Excellent</SelectItem>
-                <SelectItem value="Good">Good</SelectItem>
-                <SelectItem value="Fair">Fair</SelectItem>
-                <SelectItem value="Poor">Poor</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Attractiveness Filter */}
-          <div className="space-y-2">
-            <Label>Attractiveness</Label>
-            <Select value={selectedAttractiveness} onValueChange={setSelectedAttractiveness}>
-              <SelectTrigger>
-                <SelectValue placeholder="All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                {attractivenessCategories.map(category => (
-                  <SelectItem key={category} value={category}>
-                    {category.replace(" Attractiveness", "")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* MSA Filter */}
           <div className="space-y-2">
-            <Label>MSA</Label>
+            <Label className="text-xs text-muted-foreground">MSA</Label>
             <Popover open={msaComboboxOpen} onOpenChange={setMsaComboboxOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -656,32 +624,6 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
               </PopoverContent>
             </Popover>
           </div>
-        </div>
-
-        {/* Active Filters Summary */}
-        <div className="mt-4 flex items-center gap-2 text-sm">
-          {globalFilteredMSAs.size < new Set(attractivenessData.map(m => m.MSA)).size && (
-            <div className="text-xs bg-blue-50 px-3 py-1 rounded-full border border-blue-200 text-blue-700">
-              {globalFilteredMSAs.size} MSAs match global filters
-            </div>
-          )}
-          <span className="text-muted-foreground">
-            Showing {filteredData.length} of {data.length} opportunities
-          </span>
-          {(selectedProviders.size > 0 || 
-            selectedCategory !== "all" || selectedAttractiveness !== "all" || selectedMSA !== "all") && (
-            <button
-              onClick={() => {
-                setSelectedProviders(new Set());
-                setSelectedCategory("all");
-                setSelectedAttractiveness("all");
-                setSelectedMSA("all");
-              }}
-              className="text-primary hover:underline text-sm"
-            >
-              Clear page filters
-            </button>
-          )}
         </div>
       </Card>
 
@@ -921,7 +863,12 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                   }
                 }}
                 disabled={tableSelectedProviders.size === 0}
-                className="gap-2"
+                className={cn(
+                  "gap-2",
+                  tableSelectedProviders.size > 0 
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white" 
+                    : ""
+                )}
                 size="lg"
               >
                 <Target className="h-4 w-4" />
@@ -952,13 +899,23 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                     </p>
                   </div>
                 </div>
+                {/* Spider Chart Legend */}
+                <div className="text-[10px] text-muted-foreground bg-muted/30 px-3 py-2 rounded-lg">
+                  <div className="grid grid-cols-1 gap-0.5">
+                    <div><strong>Share</strong> = Market Share %</div>
+                    <div><strong>Reach</strong> = Regional Coverage</div>
+                    <div><strong>Satis.</strong> = Customer Satisfaction</div>
+                    <div><strong>Stable</strong> = Portfolio Stability</div>
+                    <div><strong>Quality</strong> = % in Attractive Markets</div>
+                  </div>
+                </div>
               </div>
               
-              <div className="overflow-x-auto rounded-lg border">
-                <table className="w-full border-collapse">
+              <div className="overflow-x-auto rounded-lg border mt-4">
+                <table className="w-full border-collapse table-fixed">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="text-left py-3 px-4 bg-muted/50 sticky left-0 z-10">
+                      <th className="text-left py-3 px-4 bg-muted/50 sticky left-0 z-10 w-[200px]">
                         <span className="font-medium text-sm">Metric</span>
                       </th>
                       {providerAggregates.map((agg, idx) => {
@@ -979,7 +936,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                         ];
                         
                         return (
-                          <th key={idx} className="py-4 px-3 min-w-[180px] border-l align-bottom">
+                          <th key={idx} className="py-4 px-2 border-l align-bottom">
                             <div className="flex flex-col items-center gap-3">
                               {/* Radar Chart */}
                               <div className="relative">
@@ -1023,25 +980,25 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                               </div>
                               
                               <div className="flex items-center gap-2">
-                                <Checkbox 
-                                  checked={tableSelectedProviders.has(agg.provider)}
-                                  onCheckedChange={(checked) => {
-                                    const newSelected = new Set(tableSelectedProviders);
-                                    if (checked) {
-                                      newSelected.add(agg.provider);
-                                    } else {
-                                      newSelected.delete(agg.provider);
-                                    }
-                                    setTableSelectedProviders(newSelected);
-                                  }}
-                                />
+                            <Checkbox 
+                              checked={tableSelectedProviders.has(agg.provider)}
+                              onCheckedChange={(checked) => {
+                                const newSelected = new Set(tableSelectedProviders);
+                                if (checked) {
+                                  newSelected.add(agg.provider);
+                                } else {
+                                  newSelected.delete(agg.provider);
+                                }
+                                setTableSelectedProviders(newSelected);
+                              }}
+                            />
                                 <div className="flex flex-col items-center text-center">
                                   <span className="font-semibold text-sm max-w-[140px] leading-tight">{agg.provider}</span>
                                   <span className="text-[10px] text-muted-foreground">National Aggregate</span>
                                 </div>
-                              </div>
                             </div>
-                          </th>
+                          </div>
+                        </th>
                         );
                       })}
                     </tr>
@@ -1049,9 +1006,9 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                   <tbody>
                     {/* Number of MSAs Active Row */}
                     <tr className="border-b hover:bg-muted/50 transition-colors">
-                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm">MSAs Active</td>
+                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm whitespace-nowrap">MSAs Active</td>
                       {providerAggregates.map((agg, idx) => (
-                        <td key={idx} className="py-3 px-4 text-center border-l">
+                        <td key={idx} className="py-3 px-2 text-center border-l">
                           {agg.msaCount}
                         </td>
                       ))}
@@ -1059,7 +1016,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                     
                     {/* Regional Coverage Row */}
                     <tr className="border-b hover:bg-muted/50 transition-colors">
-                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm">Regional Coverage</td>
+                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm whitespace-nowrap">Regional Coverage</td>
                       {providerAggregates.map((agg, idx) => {
                         const regionColors: Record<string, string> = {
                           'Southeast': '#10b981',
@@ -1074,10 +1031,10 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                         };
                         
                         return (
-                          <td key={idx} className="py-3 px-4 text-center border-l">
+                          <td key={idx} className="py-3 px-2 text-center border-l">
                             <HoverCard openDelay={200} closeDelay={100}>
                               <HoverCardTrigger asChild>
-                                <button className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors cursor-pointer">
+                                <button className="inline-flex items-center gap-1 px-1 py-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors cursor-pointer">
                                   <span className="font-medium">{agg.regionCount}</span>
                                   <span className="text-xs text-muted-foreground">regions</span>
                                 </button>
@@ -1102,10 +1059,13 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                                     {agg.regionalData.map((regionData, rIdx) => (
                                       <div key={rIdx} className="bg-white dark:bg-slate-800/50 rounded-md p-2 border border-slate-100 dark:border-slate-700">
                                         {/* Region Header */}
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: regionColors[regionData.region] || '#9ca3af' }} />
-                                          <span className="font-medium text-xs">{regionData.region}</span>
-                                          <span className="text-[10px] text-muted-foreground">({regionData.totalMSAs} MSA{regionData.totalMSAs > 1 ? 's' : ''})</span>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: regionColors[regionData.region] || '#9ca3af' }} />
+                                            <span className="font-medium text-xs">{regionData.region}</span>
+                                            <span className="text-[10px] text-muted-foreground">({regionData.totalMSAs} MSA{regionData.totalMSAs > 1 ? 's' : ''})</span>
+                                          </div>
+                                          <span className="text-xs text-muted-foreground">Mkt Share</span>
                                         </div>
                                         
                                         {/* Top 3 MSAs */}
@@ -1172,7 +1132,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                         </div>
                       </td>
                       {providerAggregates.map((agg, idx) => (
-                        <td key={idx} className="py-3 px-4 text-center border-l font-medium">
+                        <td key={idx} className="py-3 px-2 text-center border-l font-medium">
                           {agg.nationalMarketSharePct.toFixed(2)}%
                         </td>
                       ))}
@@ -1408,12 +1368,18 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                     
                     {/* Top 30% of Revenues Row */}
                     <tr className="border-b hover:bg-muted/50 transition-colors">
-                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm">Top 30% of Revenues</td>
+                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm whitespace-nowrap">Top 30% Revenues</td>
                       {providerAggregates.map((agg, idx) => (
-                        <td key={idx} className="py-3 px-4 text-center border-l text-xs">
-                          {agg.top30MSAs.length > 0 
-                            ? agg.top30MSAs.map(item => `${item.msa} (${item.percentage.toFixed(1)}%)`).join(", ")
-                            : "—"}
+                        <td key={idx} className="py-3 px-2 text-center border-l text-xs align-top">
+                          <div className="text-left leading-relaxed">
+                            {agg.top30MSAs.length > 0 
+                              ? agg.top30MSAs.map((item, i) => (
+                                  <div key={i} className="truncate" title={item.msa}>
+                                    {item.msa.replace(/^[A-Z]{2}(-[A-Z]{2})*-/, '')} ({item.percentage.toFixed(0)}%)
+                                  </div>
+                                ))
+                              : "—"}
+                          </div>
                         </td>
                       ))}
                     </tr>
@@ -1432,9 +1398,9 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                     
                     {/* Revenue in Good MSAs Row */}
                     <tr className="border-b hover:bg-muted/50 transition-colors">
-                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm">Revenue in Good MSAs (%)</td>
+                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm whitespace-nowrap">Good MSAs (%)</td>
                       {providerAggregates.map((agg, idx) => (
-                        <td key={idx} className="py-3 px-4 text-center border-l">
+                        <td key={idx} className="py-3 px-2 text-center border-l">
                           {agg.revenueByAttractivenessPercent.good.toFixed(1)}%
                         </td>
                       ))}
@@ -1442,9 +1408,9 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                     
                     {/* Revenue in Neutral MSAs Row */}
                     <tr className="border-b hover:bg-muted/50 transition-colors">
-                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm">Revenue in Neutral MSAs (%)</td>
+                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm whitespace-nowrap">Neutral MSAs (%)</td>
                       {providerAggregates.map((agg, idx) => (
-                        <td key={idx} className="py-3 px-4 text-center border-l">
+                        <td key={idx} className="py-3 px-2 text-center border-l">
                           {agg.revenueByAttractivenessPercent.neutral.toFixed(1)}%
                         </td>
                       ))}
@@ -1452,9 +1418,9 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                     
                     {/* Revenue in Challenging MSAs Row */}
                     <tr className="border-b hover:bg-muted/50 transition-colors">
-                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm">Revenue in Challenging MSAs (%)</td>
+                      <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm whitespace-nowrap">Challenging MSAs (%)</td>
                       {providerAggregates.map((agg, idx) => (
-                        <td key={idx} className="py-3 px-4 text-center border-l">
+                        <td key={idx} className="py-3 px-2 text-center border-l">
                           {agg.revenueByAttractivenessPercent.challenging.toFixed(1)}%
                         </td>
                       ))}

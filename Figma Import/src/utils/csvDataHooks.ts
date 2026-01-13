@@ -2,7 +2,7 @@
 // React hooks and functions for fetching CSV data
 
 import { useState, useEffect } from 'react';
-import { csvDataService } from './csvDataService';
+import { csvDataService, MSAEconomicsData } from './csvDataService';
 
 // Hook to fetch filter buckets
 export const useFilterBuckets = () => {
@@ -161,6 +161,38 @@ export const useDepositData = () => {
   return { depositData, loading, error };
 };
 
+// Hook to fetch MSA economics data
+export const useMSAEconomics = (msaName: string | null) => {
+  const [economics, setEconomics] = useState<MSAEconomicsData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!msaName || msaName === 'all') {
+      setEconomics(null);
+      return;
+    }
+
+    const fetchEconomics = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await csvDataService.getMSAEconomics(msaName);
+        setEconomics(data);
+      } catch (err) {
+        console.error("Error fetching MSA economics:", err);
+        setError(err instanceof Error ? err.message : 'Failed to load MSA economics');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEconomics();
+  }, [msaName]);
+
+  return { economics, loading, error };
+};
+
 // Direct API-like functions for components that need them
 export const fetchFilterBuckets = () => csvDataService.getFilterBuckets();
 export const fetchMSADetails = (msaName: string) => csvDataService.getMSADetails(msaName);
@@ -169,3 +201,5 @@ export const fetchOpportunitiesRaw = () => csvDataService.getOpportunitiesRaw();
 export const fetchAllOpportunitiesRaw = () => csvDataService.getAllOpportunitiesRaw();
 export const fetchMarketData = () => csvDataService.getMarketData();
 export const fetchDepositData = () => csvDataService.getDepositData();
+export const fetchMSAEconomics = (msaName: string) => csvDataService.getMSAEconomics(msaName);
+export const fetchAllMSAEconomics = () => csvDataService.getAllMSAEconomics();
