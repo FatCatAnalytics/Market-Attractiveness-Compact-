@@ -1217,12 +1217,22 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                         return (
                           <tr 
                             key={`msa-share-${msaIdx}`} 
-                            className={`border-b transition-colors text-xs ${isCommon ? 'bg-blue-50/50 dark:bg-blue-950/20' : 'bg-muted/10'}`}
+                            className="border-b transition-colors text-xs"
+                            style={{ backgroundColor: isCommon ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0,0,0,0.02)' }}
                           >
-                            <td className="py-2 px-4 pl-10 bg-muted/20 sticky left-0 z-10">
+                            <td className="py-2 px-4 pl-10 sticky left-0 z-10" style={{ backgroundColor: 'rgba(0,0,0,0.03)' }}>
                               <div className="flex items-center gap-2">
                                 {isCommon && (
-                                  <span className="w-2 h-2 rounded-full bg-blue-500" title="Common MSA" />
+                                  <span 
+                                    style={{ 
+                                      width: '8px', 
+                                      height: '8px', 
+                                      borderRadius: '50%', 
+                                      backgroundColor: '#3b82f6',
+                                      flexShrink: 0
+                                    }} 
+                                    title="Common MSA" 
+                                  />
                                 )}
                                 <span className="text-muted-foreground truncate max-w-[200px]" title={msa}>
                                   {msa.replace(/^[A-Z]{2}(-[A-Z]{2})*-/, '')}
@@ -1311,12 +1321,22 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                         return (
                           <tr 
                             key={`msa-dollars-${msaIdx}`} 
-                            className={`border-b transition-colors text-xs ${isCommon ? 'bg-green-50/50 dark:bg-green-950/20' : 'bg-muted/10'}`}
+                            className="border-b transition-colors text-xs"
+                            style={{ backgroundColor: isCommon ? 'rgba(34, 197, 94, 0.1)' : 'rgba(0,0,0,0.02)' }}
                           >
-                            <td className="py-2 px-4 pl-10 bg-muted/20 sticky left-0 z-10">
+                            <td className="py-2 px-4 pl-10 sticky left-0 z-10" style={{ backgroundColor: 'rgba(0,0,0,0.03)' }}>
                               <div className="flex items-center gap-2">
                                 {isCommon && (
-                                  <span className="w-2 h-2 rounded-full bg-green-500" title="Common MSA" />
+                                  <span 
+                                    style={{ 
+                                      width: '8px', 
+                                      height: '8px', 
+                                      borderRadius: '50%', 
+                                      backgroundColor: '#22c55e',
+                                      flexShrink: 0
+                                    }} 
+                                    title="Common MSA" 
+                                  />
                                 )}
                                 <span className="text-muted-foreground truncate max-w-[200px]" title={msa}>
                                   {msa.replace(/^[A-Z]{2}(-[A-Z]{2})*-/, '')}
