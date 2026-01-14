@@ -1202,7 +1202,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                               const msaData = agg.msaBreakdown.find(m => m.msa === msa);
                               return (
                                 <td key={idx} className="py-2 px-4 text-center border-l text-muted-foreground">
-                                  {msaData ? `${msaData.marketSharePct.toFixed(3)}%` : '—'}
+                                  {msaData ? `${msaData.marketSharePct.toFixed(2)}%` : '—'}
                                 </td>
                               );
                             })}
