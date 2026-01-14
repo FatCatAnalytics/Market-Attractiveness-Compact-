@@ -781,17 +781,16 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
           const regionCount = regionalData.length;
           
           // Calculate MSA-level breakdown for expandable rows
+          // Use the actual Market Share from CSV (provider's share within each MSA)
           const msaBreakdown = providerOpps.map(opp => {
             const marketShare = parseFloat(String(opp["Market Share"] || 0));
             const marketSize = parseFloat(String(opp["Market Size"] || 0));
             const franchiseShareDollars = marketShare * marketSize;
-            const msaMarketSharePct = totalNationalMarketSize === 0 ? 0 : (franchiseShareDollars / totalNationalMarketSize) * 100;
             
             return {
               msa: opp.MSA,
               franchiseShareDollars,
-              marketSharePct: msaMarketSharePct,
-              localMarketShare: marketShare * 100, // Provider's share within this MSA
+              marketSharePct: marketShare * 100, // Use actual market share from CSV (converted to percentage)
             };
           }).sort((a, b) => b.franchiseShareDollars - a.franchiseShareDollars);
           
