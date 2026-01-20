@@ -50,6 +50,9 @@ export default function App() {
   // Selected providers state - tracks providers selected across all views for competitor analysis
   const [selectedProviders, setSelectedProviders] = useState<Set<string>>(new Set());
 
+  // Selected MSAs state - tracks MSAs selected from the map
+  const [selectedMSAs, setSelectedMSAs] = useState<Set<string>>(new Set());
+
   // Filter drawer state
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
 
@@ -286,6 +289,7 @@ export default function App() {
                 onToggleProviderSelection={toggleProviderSelection}
                 onClearProviderSelections={clearProviderSelections}
                 onNavigateToCompetitorAnalysis={() => setActiveTab("opportunities")}
+                onMSASelectionChange={(msas) => setSelectedMSAs(msas)}
               />
             )}
           </TabsContent>
@@ -309,6 +313,7 @@ export default function App() {
                 globalFilters={globalFilters}
                 bucketAssignments={bucketAssignments}
                 preselectedProviders={selectedProviders}
+                preselectedMSAs={selectedMSAs}
               />
             )}
           </TabsContent>

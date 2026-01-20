@@ -327,23 +327,9 @@ export function USAMap({ mapData, globalFilters, bucketAssignments, selectedMSAs
     return (current.Attractiveness_Score > prev.Attractiveness_Score) ? current : prev;
   }, filteredMapData[0]) : null;
 
-  const starMarkets = new Set(
-    filteredMapData
-      .filter(msa => msa.Attractiveness_Category === "Highly Attractive" && msa.Economic_Growth_Score === "High")
-      .map(msa => msa.MSA)
-  );
-
-  const highGrowthMarkets = new Set(
-    filteredMapData
-      .filter(msa => msa.Economic_Growth_Score === "High")
-      .map(msa => msa.MSA)
-  );
-
   // Helper function to get strategic icon for an MSA
   const getStrategicIcon = (msaName: string) => {
     if (topMarket?.MSA === msaName) return "crown";
-    if (starMarkets.has(msaName)) return "star";
-    if (highGrowthMarkets.has(msaName)) return "zap";
     return null;
   };
 
@@ -627,18 +613,6 @@ export function USAMap({ mapData, globalFilters, bucketAssignments, selectedMSAs
                     <circle cx="3" cy="-3.5" r="0.8" fill="#F59E0B" />
                   </svg>
                   <span>Top Market</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="-5 -5 10 10">
-                    <path d="M0,-4 L1,-1 L4,-1 L2,1 L3,4 L0,2 L-3,4 L-2,1 L-4,-1 L-1,-1 Z" fill="#EAB308" stroke="#CA8A04" strokeWidth="0.5" />
-                  </svg>
-                  <span>Star Market</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="-5 -5 10 10">
-                    <path d="M1,-5 L-3,0 L0,0 L-1,5 L3,0 L0,0 Z" fill="#22C55E" stroke="#16A34A" strokeWidth="0.5" />
-                  </svg>
-                  <span>High-Growth</span>
                 </div>
               </div>
             </div>
@@ -961,30 +935,6 @@ export function USAMap({ mapData, globalFilters, bucketAssignments, selectedMSAs
                                       <circle cx="-3" cy="-3.5" r="0.8" fill="#F59E0B" />
                                       <circle cx="0" cy="-4.5" r="0.8" fill="#F59E0B" />
                                       <circle cx="3" cy="-3.5" r="0.8" fill="#F59E0B" />
-                                    </>
-                                  )}
-                                  {iconType === "star" && (
-                                    <>
-                                      {/* Star Icon */}
-                                      <title>Star Market - High Attractiveness + High Growth</title>
-                                      <path
-                                        d="M0,-4 L1,-1 L4,-1 L2,1 L3,4 L0,2 L-3,4 L-2,1 L-4,-1 L-1,-1 Z"
-                                        fill="#EAB308"
-                                        stroke="#CA8A04"
-                                        strokeWidth="0.5"
-                                      />
-                                    </>
-                                  )}
-                                  {iconType === "zap" && (
-                                    <>
-                                      {/* Lightning/Zap Icon */}
-                                      <title>High-Growth Market - Strong Economic Growth</title>
-                                      <path
-                                        d="M1,-5 L-3,0 L0,0 L-1,5 L3,0 L0,0 Z"
-                                        fill="#22C55E"
-                                        stroke="#16A34A"
-                                        strokeWidth="0.5"
-                                      />
                                     </>
                                   )}
                                 </g>

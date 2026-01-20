@@ -72,13 +72,14 @@ interface MSAExplorerProps {
   onToggleProviderSelection?: (provider: string) => void;
   onClearProviderSelections?: () => void;
   onNavigateToCompetitorAnalysis?: () => void;
+  onMSASelectionChange?: (msas: Set<string>) => void;
 }
 
 
 
 
 
-export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, bucketWeights = { high: 60, medium: 40 }, selectedProviders, onToggleProviderSelection, onClearProviderSelections, onNavigateToCompetitorAnalysis }: MSAExplorerProps) {
+export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, bucketWeights = { high: 60, medium: 40 }, selectedProviders, onToggleProviderSelection, onClearProviderSelections, onNavigateToCompetitorAnalysis, onMSASelectionChange }: MSAExplorerProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAttractiveness, setSelectedAttractiveness] = useState("all");
   const [selectedPricing, setSelectedPricing] = useState("all");
@@ -344,6 +345,13 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
     }
     setSelectedForComparison(newSelected);
   };
+
+  // Notify parent component when MSA selection changes
+  useEffect(() => {
+    if (onMSASelectionChange) {
+      onMSASelectionChange(selectedForComparison);
+    }
+  }, [selectedForComparison, onMSASelectionChange]);
 
   // Fetch opportunities for selected MSAs (for comparison)
   useEffect(() => {

@@ -5,7 +5,7 @@ import { Badge } from "./ui/badge";
 import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/label";
 import { Button } from "./ui/button";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { fetchAllOpportunitiesRaw, fetchFilterBuckets } from "../utils/csvDataHooks";
 import { applyGlobalFilters } from "../utils/applyGlobalFilters";
@@ -44,6 +44,7 @@ export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData =
   const [isLoading, setIsLoading] = useState(true);
   const [showCompetitiveLandscape, setShowCompetitiveLandscape] = useState(true); // Visible by default
   const [showOnlyIncludedInRanking, setShowOnlyIncludedInRanking] = useState(false); // When true, show only Included_In_Ranking === true
+  const [showAllRows, setShowAllRows] = useState(false); // When false, show only first 20 rows
   const [filterBuckets, setFilterBuckets] = useState<{
     marketSize?: { range: { min: number; max: number } };
     revenuePerCompany?: { range: { min: number; max: number } };
@@ -95,6 +96,11 @@ export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData =
     
     return new Set(filtered.map(item => item.MSA));
   }, [mapData, opportunities, globalFilters, bucketAssignments, filterBuckets]);
+
+  // Reset showAllRows when filters change
+  useEffect(() => {
+    setShowAllRows(false);
+  }, [globalFilters, showOnlyIncludedInRanking, mapData]);
 
   // Filter opportunities based on global filters
   const filteredOpportunities = useMemo(() => {
@@ -286,7 +292,7 @@ export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData =
         </div>
         {showCompetitiveLandscape && (
           <p className="text-sm text-muted-foreground mt-1">
-            All opportunities filtered by current global filters ({providerAggregates.length} providers)
+            All opportunities filtered by current global filters
           </p>
         )}
       </div>
@@ -304,15 +310,13 @@ export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData =
                   <TableRow>
                     <TableHead className="min-w-[120px] px-2 text-xs">Provider</TableHead>
                     <TableHead className="text-right min-w-[90px] px-2 text-xs">Overall Share Size (%)</TableHead>
-                    <TableHead className="min-w-[150px] px-2 text-xs">Top MSA</TableHead>
-                    <TableHead className="text-right min-w-[110px] px-2 text-xs">Market Share in Top MSA (%)</TableHead>
                     <TableHead className="text-right min-w-[90px] px-2 text-xs">MSAs Penetrated</TableHead>
                     <TableHead className="text-right min-w-[120px] px-2 text-xs">Market Share at Risk (%)</TableHead>
                     <TableHead className="text-right min-w-[130px] px-2 text-xs">Customer Satisfaction Score</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {providerAggregates.map((agg, idx) => {
+                  {(showAllRows ? providerAggregates : providerAggregates.slice(0, 20)).map((agg, idx) => {
                     const riskDisplay = agg.marketShareAtRisk < 5 
                       ? "<5%" 
                       : agg.marketShareAtRisk > 25 
@@ -337,26 +341,11 @@ export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData =
                         <TableCell className="text-right px-2 text-xs">
                           {agg.overallShareSize.toFixed(2)}%
                         </TableCell>
-                        <TableCell className="max-w-[150px] truncate px-2 text-xs" title={agg.topMSA}>{agg.topMSA}</TableCell>
-                        <TableCell className="text-right px-2 text-xs">
-                          {agg.topMSAMarketShare.toFixed(1)}%
-                        </TableCell>
                         <TableCell className="text-right px-2 text-xs">
                           {agg.msasPenetrated}
                         </TableCell>
                         <TableCell className="text-right px-2 text-xs">
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs ${
-                              agg.marketShareAtRisk > 25 
-                                ? "bg-red-50 text-red-700 border-red-300" 
-                                : agg.marketShareAtRisk < 5
-                                  ? "bg-green-50 text-green-700 border-green-300"
-                                  : ""
-                            }`}
-                          >
-                            {riskDisplay}
-                          </Badge>
+                          {riskDisplay}
                         </TableCell>
                         <TableCell className="text-right px-2 text-xs">
                           {agg.customerSatisfactionScore !== null 
@@ -366,6 +355,29 @@ export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData =
                       </TableRow>
                     );
                   })}
+                  {providerAggregates.length > 20 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-4">
+                        <Button
+                          variant="ghost"
+                          onClick={() => setShowAllRows(!showAllRows)}
+                          className="flex items-center gap-2 mx-auto"
+                        >
+                          {showAllRows ? (
+                            <>
+                              <ChevronUp className="h-4 w-4" />
+                              Show Less
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-4 w-4" />
+                              Show All ({providerAggregates.length} total)
+                            </>
+                          )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>

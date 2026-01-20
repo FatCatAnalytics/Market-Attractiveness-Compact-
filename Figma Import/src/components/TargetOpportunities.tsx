@@ -59,6 +59,7 @@ interface TargetOpportunitiesProps {
   globalFilters: GlobalFilters;
   bucketAssignments: BucketAssignment[];
   preselectedProviders?: Set<string>;
+  preselectedMSAs?: Set<string>;
 }
 
 const COLORS = {
@@ -75,7 +76,7 @@ const ATTRACTIVENESS_COLORS = {
   "Challenging": "#ef4444",
 };
 
-export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, globalFilters, bucketAssignments, preselectedProviders }: TargetOpportunitiesProps) {
+export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, globalFilters, bucketAssignments, preselectedProviders, preselectedMSAs }: TargetOpportunitiesProps) {
   const [data, setData] = useState<OpportunityData[]>([]);
   const [marketData, setMarketData] = useState<OpportunityData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -83,7 +84,9 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
   const [selectedProviders, setSelectedProviders] = useState<Set<string>>(preselectedProviders || new Set());
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedAttractiveness, setSelectedAttractiveness] = useState("all");
-  const [selectedMSA, setSelectedMSA] = useState("all");
+  // Initialize MSA from preselected MSAs: if exactly one MSA is selected, use it; otherwise use "all"
+  const initialMSA = preselectedMSAs && preselectedMSAs.size === 1 ? Array.from(preselectedMSAs)[0] : "all";
+  const [selectedMSA, setSelectedMSA] = useState(initialMSA);
   const [providerComboboxOpen, setProviderComboboxOpen] = useState(false);
   const [msaComboboxOpen, setMsaComboboxOpen] = useState(false);
   const [tableSelectedProviders, setTableSelectedProviders] = useState<Set<string>>(new Set());
@@ -99,6 +102,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
     providers: string[];
     market: OpportunityData[];
     deposits: DepositData[];
+    selectedMSA: string;
   } | null>(null);
   
   // State for expandable rows
@@ -128,6 +132,22 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
       setSelectedProviders(new Set(preselectedProviders));
     }
   }, [preselectedProviders]);
+
+  // Update selected MSA when preselected MSAs change
+  useEffect(() => {
+    if (preselectedMSAs) {
+      if (preselectedMSAs.size === 1) {
+        // If exactly one MSA is selected, use it
+        const msa = Array.from(preselectedMSAs)[0];
+        console.log('TargetOpportunities: Received preselected MSA:', msa);
+        setSelectedMSA(msa);
+      } else if (preselectedMSAs.size === 0) {
+        // If no MSAs are selected, reset to "all"
+        setSelectedMSA("all");
+      }
+      // If multiple MSAs are selected, keep selectedMSA as "all" but use preselectedMSAs in calculations
+    }
+  }, [preselectedMSAs]);
 
   useEffect(() => {
     fetchOpportunities();
@@ -646,25 +666,197 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
           return matchesGlobalFilters && matchesProvider && matchesCategory && matchesAttractiveness;
         });
         
-        // When MSA is selected (but no specific franchises), use national data for calculations
-        // Otherwise use MSA-filtered data - using marketData to include all providers
-        const dataForNationalMetrics = selectedMSA !== "all" && selectedProviders.size === 0
-          ? filteredMarketDataWithoutMSA.filter(opp => providersToShow.has(opp.Provider))
-          : filteredMarketData.filter(opp => providersToShow.has(opp.Provider));
+        // When MSA(s) are selected, scope all calculations to those MSAs
+        // When no MSA is selected, use national data
+        const hasMSAFilter = (preselectedMSAs && preselectedMSAs.size > 0) || selectedMSA !== "all";
+        const dataForMetrics = hasMSAFilter
+          ? filteredMarketData.filter(opp => {
+              const msaMatches = preselectedMSAs && preselectedMSAs.size > 0
+                ? preselectedMSAs.has(opp.MSA)
+                : selectedMSA === opp.MSA;
+              return msaMatches && providersToShow.has(opp.Provider);
+            })
+          : filteredMarketDataWithoutMSA.filter(opp => providersToShow.has(opp.Provider));
         
-        // Get all opportunities for selected providers
-        const selectedProviderOpportunities = dataForNationalMetrics;
+        // Get all opportunities for selected providers (scoped to selected MSA if applicable)
+        const selectedProviderOpportunities = dataForMetrics;
         
-        // Calculate total market size across ALL MSAs in the dataset
+        // ============================================
+        // BEST IN CLASS BENCHMARKS
+        // Calculate benchmarks from ALL providers in the selected MSAs (or nationally)
+        // ============================================
+        
+        // Get all unique MSAs in scope
+        // Priority: preselectedMSAs (from map) > selectedMSA (from dropdown) > all filtered MSAs
+        const msasInScope = preselectedMSAs && preselectedMSAs.size > 0
+          ? preselectedMSAs  // Use preselected MSAs from map (can be multiple)
+          : selectedMSA !== "all"
+            ? new Set([selectedMSA])  // Use single MSA from dropdown
+            : new Set(filteredMarketData.map(item => item.MSA));  // Use all filtered MSAs
+        
+        // Calculate total market size for MSAs IN SCOPE (not all MSAs)
         const msaMarketSizes = new Map<string, number>();
         attractivenessData.forEach(item => {
-          const marketSize = parseFloat(String(item["Market Size"] || 0));
-          if (!msaMarketSizes.has(item.MSA)) {
-            msaMarketSizes.set(item.MSA, marketSize);
+          if (msasInScope.has(item.MSA)) {
+            const marketSize = parseFloat(String(item["Market Size"] || 0));
+            if (!msaMarketSizes.has(item.MSA)) {
+              msaMarketSizes.set(item.MSA, marketSize);
+            }
           }
         });
-        const totalNationalMarketSize = Array.from(msaMarketSizes.values()).reduce((sum, size) => sum + size, 0);
+        const totalMarketSizeInScope = Array.from(msaMarketSizes.values()).reduce((sum, size) => sum + size, 0);
         
+        // For backward compatibility, also calculate national total (used when no MSA filter)
+        const totalNationalMarketSize = selectedMSA === "all" 
+          ? totalMarketSizeInScope
+          : Array.from(new Map(attractivenessData.map(item => [item.MSA, parseFloat(String(item["Market Size"] || 0))])).values())
+              .reduce((sum, size) => sum + size, 0);
+        
+        // Get ALL providers that operate in these MSAs (not just selected ones)
+        // Use filteredMarketData to ensure we respect the MSA filter
+        const allProvidersInScope = new Set<string>();
+        filteredMarketData.forEach(item => {
+          if (msasInScope.has(item.MSA)) {
+            allProvidersInScope.add(item.Provider);
+          }
+        });
+        
+        // Calculate metrics for ALL providers to establish benchmarks
+        // Use filteredMarketData to ensure we're only looking at the selected MSA(s)
+        const allProviderMetrics = Array.from(allProvidersInScope).map(provider => {
+          const providerOpps = filteredMarketData.filter(opp => 
+            opp.Provider === provider && 
+            msasInScope.has(opp.MSA)
+          );
+          
+          if (providerOpps.length === 0) return null;
+          
+          // Market Share - sum of franchise share dollars / total market IN SCOPE
+          const totalFranchiseShare = providerOpps.reduce((sum, opp) => {
+            const marketShare = parseFloat(String(opp["Market Share"] || 0));
+            const marketSize = parseFloat(String(opp["Market Size"] || 0));
+            return sum + (marketShare * marketSize);
+          }, 0);
+          const marketSharePct = totalMarketSizeInScope === 0 ? 0 : (totalFranchiseShare / totalMarketSizeInScope) * 100;
+          
+          // Regional Coverage - count unique regions
+          const regions = new Set(providerOpps.map(opp => getRegionFromStateCodes(opp.MSA)));
+          const regionCount = regions.size;
+          
+          // Customer Satisfaction
+          const satisfactionScores = providerOpps
+            .map(opp => (opp as any).Weighted_Average_Score)
+            .filter(score => score !== null && score !== undefined && !isNaN(score));
+          const avgSatisfaction = satisfactionScores.length > 0
+            ? satisfactionScores.reduce((sum, score) => sum + score, 0) / satisfactionScores.length
+            : null;
+          
+          // Revenue at Risk (inverse for spider chart - lower risk = higher score)
+          const totalAtRisk = providerOpps.reduce((sum, opp) => sum + parseFloat(String(opp["Defend $"] || 0)), 0);
+          const atRiskPct = totalFranchiseShare === 0 ? 0 : (totalAtRisk / totalFranchiseShare) * 100;
+          // Invert so lower risk = higher score (better for spider chart)
+          const revenueAtRiskScore = Math.max(0, 100 - atRiskPct * 2);
+          
+          // Quality - % revenue in attractive markets
+          let goodRevenue = 0;
+          providerOpps.forEach(opp => {
+            const marketShare = parseFloat(String(opp["Market Share"] || 0));
+            const marketSize = parseFloat(String(opp["Market Size"] || 0));
+            const revenue = marketShare * marketSize;
+            const attr = opp.Attractiveness_Category?.toLowerCase() || '';
+            if (attr.includes('highly attractive') || attr === 'attractive') {
+              goodRevenue += revenue;
+            }
+          });
+          const qualityScore = totalFranchiseShare === 0 ? 0 : (goodRevenue / totalFranchiseShare) * 100;
+          
+          return {
+            provider,
+            marketSharePct,
+            regionCount,
+            satisfaction: avgSatisfaction,
+            revenueAtRiskScore,
+            qualityScore
+          };
+        }).filter(m => m !== null) as Array<{
+          provider: string;
+          marketSharePct: number;
+          regionCount: number;
+          satisfaction: number | null;
+          stabilityScore: number;
+          qualityScore: number;
+        }>;
+        
+        // Calculate min/max benchmarks for each metric
+        const benchmarks = {
+          marketShare: {
+            min: Math.min(...allProviderMetrics.map(m => m.marketSharePct)),
+            max: Math.max(...allProviderMetrics.map(m => m.marketSharePct)),
+          },
+          regionCount: {
+            min: Math.min(...allProviderMetrics.map(m => m.regionCount)),
+            max: Math.max(...allProviderMetrics.map(m => m.regionCount)),
+          },
+          satisfaction: {
+            min: Math.min(...allProviderMetrics.filter(m => m.satisfaction !== null).map(m => m.satisfaction!)),
+            max: Math.max(...allProviderMetrics.filter(m => m.satisfaction !== null).map(m => m.satisfaction!)),
+          },
+          revenueAtRisk: {
+            min: Math.min(...allProviderMetrics.map(m => m.revenueAtRiskScore)),
+            max: Math.max(...allProviderMetrics.map(m => m.revenueAtRiskScore)),
+          },
+          quality: {
+            min: Math.min(...allProviderMetrics.map(m => m.qualityScore)),
+            max: Math.max(...allProviderMetrics.map(m => m.qualityScore)),
+          }
+        };
+        
+        // Helper function to calculate percentile score (0-100)
+        const calculatePercentileScore = (value: number, min: number, max: number): number => {
+          if (max === min) return 50; // All same value
+          return Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+        };
+        
+        // Calculate average values across all providers for background reference
+        // Need to recalculate raw at-risk percentages for averaging
+        const averageAtRiskPct = allProviderMetrics.length > 0
+          ? allProviderMetrics.reduce((sum, m) => {
+              // Reverse the score calculation to get raw at-risk percentage
+              // revenueAtRiskScore = 100 - atRiskPct * 2, so atRiskPct = (100 - revenueAtRiskScore) / 2
+              const rawAtRisk = (100 - m.revenueAtRiskScore) / 2;
+              return sum + rawAtRisk;
+            }, 0) / allProviderMetrics.length
+          : 0;
+        
+        const averageMetrics = {
+          marketShare: allProviderMetrics.length > 0
+            ? allProviderMetrics.reduce((sum, m) => sum + m.marketSharePct, 0) / allProviderMetrics.length
+            : 0,
+          regionCount: allProviderMetrics.length > 0
+            ? allProviderMetrics.reduce((sum, m) => sum + m.regionCount, 0) / allProviderMetrics.length
+            : 0,
+          satisfaction: allProviderMetrics.filter(m => m.satisfaction !== null).length > 0
+            ? allProviderMetrics.filter(m => m.satisfaction !== null).reduce((sum, m) => sum + (m.satisfaction || 0), 0) / allProviderMetrics.filter(m => m.satisfaction !== null).length
+            : 2.5,
+          revenueAtRiskScore: Math.max(0, 100 - averageAtRiskPct * 2), // Convert average at-risk % back to score
+          quality: allProviderMetrics.length > 0
+            ? allProviderMetrics.reduce((sum, m) => sum + m.qualityScore, 0) / allProviderMetrics.length
+            : 0
+        };
+        
+        // Convert averages to percentile scores for the radar chart
+        const averageRadarData = [
+          { metric: 'Market\nShare', value: calculatePercentileScore(averageMetrics.marketShare, benchmarks.marketShare.min, benchmarks.marketShare.max), fullMark: 100 },
+          { metric: 'Regional\nBreadth', value: calculatePercentileScore(averageMetrics.regionCount, benchmarks.regionCount.min, benchmarks.regionCount.max), fullMark: 100 },
+          { metric: 'Satisfaction', value: calculatePercentileScore(averageMetrics.satisfaction, benchmarks.satisfaction.min || 0, benchmarks.satisfaction.max || 5), fullMark: 100 },
+          { metric: 'Revenue at\nRisk', value: calculatePercentileScore(averageMetrics.revenueAtRiskScore, benchmarks.revenueAtRisk.min, benchmarks.revenueAtRisk.max), fullMark: 100 },
+          { metric: 'Market\nQuality', value: calculatePercentileScore(averageMetrics.quality, benchmarks.quality.min, benchmarks.quality.max), fullMark: 100 },
+        ];
+        
+        // ============================================
+        // END BENCHMARKS
+        // ============================================
+
         // Calculate aggregate metrics for each provider
         const providerAggregates = Array.from(providersToShow).map(provider => {
           const providerOpps = selectedProviderOpportunities.filter(opp => opp.Provider === provider);
@@ -679,8 +871,11 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
             return sum + (marketShare * marketSize);
           }, 0);
           
-          // Calculate national market share percentage
-          const nationalMarketSharePct = totalNationalMarketSize === 0 ? 0 : (totalFranchiseShareDollars / totalNationalMarketSize) * 100;
+          // Calculate market share percentage (scoped to selected MSAs or national)
+          const marketSharePct = selectedMSA !== "all" 
+            ? (totalMarketSizeInScope === 0 ? 0 : (totalFranchiseShareDollars / totalMarketSizeInScope) * 100)
+            : (totalNationalMarketSize === 0 ? 0 : (totalFranchiseShareDollars / totalNationalMarketSize) * 100);
+          const nationalMarketSharePct = marketSharePct; // Keep variable name for compatibility
           
           // Sum up market share at risk
           const totalAtRiskDollars = providerOpps.reduce((sum, opp) => {
@@ -845,7 +1040,8 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                       franchises: franchisesToAnalyze,
                       providers: allProviders,
                       market: marketData,
-                      deposits: depositDataResponse
+                      deposits: depositDataResponse,
+                      selectedMSA: selectedMSA
                     });
                     setIsAnalysisModalOpen(true);
                   } catch (error) {
@@ -856,7 +1052,8 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                       franchises: franchisesToAnalyze,
                       providers: allProviders,
                       market: marketData,
-                      deposits: []
+                      deposits: [],
+                      selectedMSA: selectedMSA
                     });
                     setIsAnalysisModalOpen(true);
                   }
@@ -885,27 +1082,42 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="mb-0">Franchise Comparison Summary</h3>
-                      {selectedMSA !== "all" && selectedProviders.size === 0 && (
+                      {((preselectedMSAs && preselectedMSAs.size > 0) || selectedMSA !== "all") && selectedProviders.size === 0 && (
                         <Badge variant="secondary" className="text-xs">
-                          MSA: {selectedMSA}
+                          {preselectedMSAs && preselectedMSAs.size > 1 
+                            ? `${preselectedMSAs.size} MSAs`
+                            : preselectedMSAs && preselectedMSAs.size === 1
+                              ? `MSA: ${Array.from(preselectedMSAs)[0]}`
+                              : `MSA: ${selectedMSA}`}
                         </Badge>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {selectedMSA !== "all" && selectedProviders.size === 0 
-                        ? `Showing national-level metrics for ${providersToShow.size} franchise${providersToShow.size > 1 ? 's' : ''} operating in this MSA`
-                        : `National-level aggregate metrics · ${providersToShow.size} franchise${providersToShow.size > 1 ? 's' : ''} available`}
+                      {((preselectedMSAs && preselectedMSAs.size > 0) || selectedMSA !== "all") && selectedProviders.size === 0 
+                        ? preselectedMSAs && preselectedMSAs.size > 1
+                          ? `Metrics for ${providersToShow.size} franchise${providersToShow.size > 1 ? 's' : ''} · Benchmarked vs ${allProvidersInScope.size} providers across ${preselectedMSAs.size} selected MSAs`
+                          : `Metrics for ${providersToShow.size} franchise${providersToShow.size > 1 ? 's' : ''} · Benchmarked vs ${allProvidersInScope.size} providers in this MSA`
+                        : `National-level metrics · Benchmarked vs ${allProvidersInScope.size} providers in selected scope`}
                     </p>
                   </div>
                 </div>
                 {/* Spider Chart Legend */}
                 <div className="text-[10px] text-muted-foreground bg-muted/30 px-3 py-2 rounded-lg">
                   <div className="grid grid-cols-1 gap-0.5">
-                    <div><strong>Share</strong> = Market Share %</div>
-                    <div><strong>Reach</strong> = Regional Coverage</div>
-                    <div><strong>Satis.</strong> = Customer Satisfaction</div>
-                    <div><strong>Stable</strong> = Portfolio Stability</div>
-                    <div><strong>Quality</strong> = % in Attractive Markets</div>
+                    <div className="font-semibold text-primary mb-1">
+                      vs {allProvidersInScope.size} providers in {
+                        preselectedMSAs && preselectedMSAs.size > 1 
+                          ? `${preselectedMSAs.size} MSAs`
+                          : (preselectedMSAs && preselectedMSAs.size === 1) || selectedMSA !== "all"
+                            ? "MSA"
+                            : "scope"
+                      }
+                    </div>
+                    <div><strong>Market Share</strong> = Market share percentage</div>
+                    <div><strong>Regional Breadth</strong> = Number of regions served</div>
+                    <div><strong>Satisfaction</strong> = Customer satisfaction score</div>
+                    <div><strong>Revenue at Risk</strong> = Portfolio stability (lower risk = higher score)</div>
+                    <div><strong>Market Quality</strong> = % revenue in attractive markets</div>
                   </div>
                 </div>
               </div>
@@ -919,19 +1131,51 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                       </th>
                       {providerAggregates.map((agg, idx) => {
                         // Calculate normalized scores for radar chart (0-100 scale)
-                        const maxMarketShare = Math.max(...providerAggregates.map(p => p.nationalMarketSharePct));
-                        const marketShareScore = maxMarketShare > 0 ? (agg.nationalMarketSharePct / maxMarketShare) * 100 : 0;
-                        const coverageScore = (agg.regionCount / 8) * 100; // 8 main regions
-                        const satisfactionScore = agg.customerSatisfactionScore !== null ? agg.customerSatisfactionScore * 20 : 50;
-                        const stabilityScore = Math.max(0, 100 - agg.percentageAtRisk * 2); // Lower risk = higher stability
-                        const qualityScore = agg.revenueByAttractivenessPercent.good;
+                        // Using Best-in-Class benchmarks from ALL providers in scope
+                        
+                        // Market Share - percentile vs all providers in MSAs
+                        const marketShareScore = calculatePercentileScore(
+                          agg.nationalMarketSharePct, 
+                          benchmarks.marketShare.min, 
+                          benchmarks.marketShare.max
+                        );
+                        
+                        // Regional Coverage - percentile vs all providers
+                        const coverageScore = calculatePercentileScore(
+                          agg.regionCount,
+                          benchmarks.regionCount.min,
+                          benchmarks.regionCount.max
+                        );
+                        
+                        // Customer Satisfaction - percentile vs all providers
+                        const rawSatisfaction = agg.customerSatisfactionScore !== null ? agg.customerSatisfactionScore : 2.5;
+                        const satisfactionScore = calculatePercentileScore(
+                          rawSatisfaction,
+                          benchmarks.satisfaction.min || 0,
+                          benchmarks.satisfaction.max || 5
+                        );
+                        
+                        // Revenue at Risk - percentile vs all providers (inverted - lower risk = higher score)
+                        const rawRevenueAtRisk = Math.max(0, 100 - agg.percentageAtRisk * 2);
+                        const revenueAtRiskScore = calculatePercentileScore(
+                          rawRevenueAtRisk,
+                          benchmarks.revenueAtRisk.min,
+                          benchmarks.revenueAtRisk.max
+                        );
+                        
+                        // Quality (% in attractive markets) - percentile vs all providers
+                        const qualityScore = calculatePercentileScore(
+                          agg.revenueByAttractivenessPercent.good,
+                          benchmarks.quality.min,
+                          benchmarks.quality.max
+                        );
                         
                         const radarData = [
-                          { metric: 'Share', value: marketShareScore, fullMark: 100 },
-                          { metric: 'Reach', value: coverageScore, fullMark: 100 },
-                          { metric: 'Satis.', value: satisfactionScore, fullMark: 100 },
-                          { metric: 'Stable', value: stabilityScore, fullMark: 100 },
-                          { metric: 'Quality', value: qualityScore, fullMark: 100 },
+                          { metric: 'Market\nShare', value: marketShareScore, fullMark: 100 },
+                          { metric: 'Regional\nBreadth', value: coverageScore, fullMark: 100 },
+                          { metric: 'Satisfaction', value: satisfactionScore, fullMark: 100 },
+                          { metric: 'Revenue at\nRisk', value: revenueAtRiskScore, fullMark: 100 },
+                          { metric: 'Market\nQuality', value: qualityScore, fullMark: 100 },
                         ];
                         
                         return (
@@ -940,11 +1184,11 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                               {/* Radar Chart */}
                               <div className="relative">
                                 <RadarChart 
-                                  width={160} 
-                                  height={130} 
-                                  cx={80} 
-                                  cy={65} 
-                                  outerRadius={45} 
+                                  width={240} 
+                                  height={200} 
+                                  cx={120} 
+                                  cy={100} 
+                                  outerRadius={60} 
                                   data={radarData}
                                 >
                                   <PolarGrid 
@@ -954,10 +1198,26 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                                   />
                                   <PolarAngleAxis 
                                     dataKey="metric" 
-                                    tick={{ 
-                                      fontSize: 10, 
-                                      fill: '#475569',
-                                      fontWeight: 500
+                                    tick={(props: any) => {
+                                      const { payload, x, y } = props;
+                                      const lines = payload.value.split('\n');
+                                      return (
+                                        <g>
+                                          {lines.map((line: string, i: number) => (
+                                            <text
+                                              key={i}
+                                              x={x}
+                                              y={y + (i * 10)}
+                                              textAnchor="middle"
+                                              fontSize={9}
+                                              fill="#475569"
+                                              fontWeight={500}
+                                            >
+                                              {line}
+                                            </text>
+                                          ))}
+                                        </g>
+                                      );
                                     }}
                                     tickLine={false}
                                   />
@@ -967,6 +1227,19 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                                     tick={false}
                                     axisLine={false}
                                   />
+                                  {/* Average reference line (background) */}
+                                  <Radar
+                                    name="Average"
+                                    dataKey="value"
+                                    data={averageRadarData}
+                                    stroke="#94a3b8"
+                                    fill="#cbd5e1"
+                                    fillOpacity={0.15}
+                                    strokeWidth={1}
+                                    strokeDasharray="3 3"
+                                    isAnimationActive={false}
+                                  />
+                                  {/* Bank's performance (foreground) */}
                                   <Radar
                                     name={agg.provider}
                                     dataKey="value"
@@ -993,7 +1266,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                             />
                                 <div className="flex flex-col items-center text-center">
                                   <span className="font-semibold text-sm max-w-[140px] leading-tight">{agg.provider}</span>
-                                  <span className="text-[10px] text-muted-foreground">National Aggregate</span>
+                                  <span className="text-[10px] text-muted-foreground">Percentile vs Best-in-Class</span>
                                 </div>
                             </div>
                           </div>
@@ -1371,13 +1644,13 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                       {providerAggregates.map((agg, idx) => (
                         <td key={idx} className="py-3 px-2 text-center border-l text-xs align-top">
                           <div className="text-left leading-relaxed">
-                            {agg.top30MSAs.length > 0 
+                          {agg.top30MSAs.length > 0 
                               ? agg.top30MSAs.map((item, i) => (
                                   <div key={i} className="truncate" title={item.msa}>
                                     {item.msa.replace(/^[A-Z]{2}(-[A-Z]{2})*-/, '')} ({item.percentage.toFixed(0)}%)
                                   </div>
                                 ))
-                              : "—"}
+                            : "—"}
                           </div>
                         </td>
                       ))}
@@ -1857,6 +2130,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
               allProviders={analysisData.providers}
               marketData={analysisData.market}
               depositData={analysisData.deposits}
+              selectedMSA={analysisData.selectedMSA}
               onBack={() => setIsAnalysisModalOpen(false)}
             />
           )}

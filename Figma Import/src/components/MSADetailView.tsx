@@ -189,7 +189,7 @@ export function MSADetailView({ msaData, opportunities, allOpportunities, select
       {/* Competitive Landscape Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Competitive Landscape ({opportunities.length})</CardTitle>
+          <CardTitle className="text-sm font-medium">Competitive Landscape</CardTitle>
         </CardHeader>
         <CardContent>
           <MSACompetitiveTable opportunities={opportunities} allOpportunities={allOpportunities} selectedProviders={selectedProviders} onToggleProviderSelection={onToggleProviderSelection} />

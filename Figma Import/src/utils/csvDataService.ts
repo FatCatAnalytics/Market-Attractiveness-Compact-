@@ -187,7 +187,7 @@ class CSVDataService {
       if (!opportunityResponse.ok) {
         throw new Error(`Failed to load opportunity.csv: ${opportunityResponse.status}`);
       }
-
+      
       const [attractivenessText, opportunityText, economicsText] = await Promise.all([
         attractivenessResponse.text(),
         opportunityResponse.text(),
@@ -541,8 +541,8 @@ class CSVDataService {
         Provider: row.Provider,
         "Market Share": row["Market Share"],
       }));
-  }
-
+      }
+      
   // Get MSA economics data by MSA name
   async getMSAEconomics(msaName: string): Promise<MSAEconomicsData | null> {
     await this.loadData();

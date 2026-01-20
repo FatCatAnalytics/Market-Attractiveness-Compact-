@@ -35,6 +35,7 @@ interface AcquisitionAnalysisProps {
   allProviders: string[];
   marketData: OpportunityData[];
   depositData: DepositData[];
+  selectedMSA?: string;
   onBack: () => void;
 }
 
@@ -43,6 +44,7 @@ export function AcquisitionAnalysis({
   allProviders: initialAllProviders, 
   marketData: initialMarketData,
   depositData: initialDepositData,
+  selectedMSA = "all",
   onBack 
 }: AcquisitionAnalysisProps) {
   const [acquiringProvider, setAcquiringProvider] = useState("");
@@ -543,6 +545,17 @@ export function AcquisitionAnalysis({
       ? (franchiseShareDollars / totalNationalMarketSize) * 100 
       : 0;
     
+    // Calculate total "at risk" dollars (Defend $) for the franchise
+    let totalAtRiskDollars = 0;
+    franchiseData.forEach(item => {
+      totalAtRiskDollars += parseFloat(String(item["Defend $"] || 0));
+    });
+    
+    // Calculate percentage at risk: (Total Defend $ / Total Franchise Share Dollars) * 100
+    const franchisePercentageAtRisk = franchiseShareDollars > 0 
+      ? (totalAtRiskDollars / franchiseShareDollars) * 100 
+      : 0;
+    
     // Calculate impact
     const msasImpacted = Array.from(franchiseMSAs).filter(msa => baselineMSAs.has(msa)).length;
     const newMarketsEntered = Array.from(franchiseMSAs).filter(msa => !baselineMSAs.has(msa)).length;
@@ -566,6 +579,11 @@ export function AcquisitionAnalysis({
       acquirerMSAMarketSizeMap.set(msa, Math.max(acquirerMSAMarketSizeMap.get(msa) || 0, marketSize));
     });
     
+    // Calculate baseline Total Addressable Market (sum of market sizes for all MSAs where acquirer operates)
+    const baselineTotalAddressableMarket = Math.ceil(
+      Array.from(acquirerMSAMarketSizeMap.values()).reduce((sum, size) => sum + size, 0)
+    );
+    
     // Get market sizes for franchise's MSAs
     const franchiseMSAMarketSizeMap = new Map<string, number>();
     franchiseData.forEach(item => {
@@ -583,21 +601,42 @@ export function AcquisitionAnalysis({
     });
     totalAddressableMarketAfter = Math.ceil(totalAddressableMarketAfter);
     
+    // Calculate TAM from new markets only (markets franchise has that acquirer doesn't)
+    let tamFromNewMarkets = 0;
+    Array.from(franchiseMSAs).forEach(msa => {
+      if (!baselineMSAs.has(msa)) {
+        tamFromNewMarkets += franchiseMSAMarketSizeMap.get(msa) || 0;
+      }
+    });
+    tamFromNewMarkets = Math.ceil(tamFromNewMarkets);
+    
     return {
       baselineShareDollars,
       baselineMarketSharePct,
       baselineMSAs: baselineMSAs.size,
+      baselineTotalAddressableMarket,
       franchiseShareDollars,
       franchiseMarketSharePct,
       franchiseMSAs: franchiseMSAs.size,
+      franchisePercentageAtRisk,
       msasImpacted,
       newMarketsEntered,
       afterShareDollars,
       afterMarketSharePct,
       afterMSAs,
-      totalAddressableMarketAfter
+      totalAddressableMarketAfter,
+      tamFromNewMarkets
     };
   }, [acquiringProvider, selectedFranchise, marketData]);
+
+  // Initialize haircut percentage to franchise's at-risk percentage when a franchise is selected
+  useEffect(() => {
+    if (selectedFranchise && selectedFranchiseData && selectedFranchiseData.franchisePercentageAtRisk > 0) {
+      // Round to 2 decimal places and clamp between 0 and 20
+      const atRiskPct = Math.round(selectedFranchiseData.franchisePercentageAtRisk * 100) / 100;
+      setHaircutPercentage(Math.min(Math.max(atRiskPct, 0), 20));
+    }
+  }, [selectedFranchise, selectedFranchiseData]);
 
   const getOpportunityBadgeColor = (category: string) => {
     if (category === "Excellent") return "bg-green-100 text-green-800 border-green-300";
@@ -806,6 +845,17 @@ export function AcquisitionAnalysis({
                 ? (baselineShareDollars / totalNationalMarketSize) * 100 
                 : 0;
 
+              // Calculate baseline Total Addressable Market (sum of market sizes for all MSAs where acquirer operates)
+              const acquirerMSAMarketSizeMap = new Map<string, number>();
+              acquirerMarketData.forEach(item => {
+                const msa = item.MSA;
+                const marketSize = parseFloat(String(item["Market Size"] || 0));
+                acquirerMSAMarketSizeMap.set(msa, Math.max(acquirerMSAMarketSizeMap.get(msa) || 0, marketSize));
+              });
+              const baselineTotalAddressableMarket = Math.ceil(
+                Array.from(acquirerMSAMarketSizeMap.values()).reduce((sum, size) => sum + size, 0)
+              );
+
               // Group franchises by provider for analysis
               const franchisesByProvider = providersBeingAcquired
                 .filter(provider => provider && typeof provider === 'string')
@@ -882,6 +932,15 @@ export function AcquisitionAnalysis({
                   });
                   totalAddressableMarketAfter = Math.ceil(totalAddressableMarketAfter);
                   
+                  // Calculate TAM from new markets only (markets franchise has that acquirer doesn't)
+                  let tamFromNewMarkets = 0;
+                  Array.from(providerMSAs).forEach(msa => {
+                    if (!baselineMSAs.has(msa)) {
+                      tamFromNewMarkets += msaMarketSizeMap.get(msa) || 0;
+                    }
+                  });
+                  tamFromNewMarkets = Math.ceil(tamFromNewMarkets);
+                  
                   return {
                     providerName,
                     providerMSAs: providerMSAs.size,
@@ -893,7 +952,8 @@ export function AcquisitionAnalysis({
                     afterShareDollars,
                     afterMarketSharePct,
                     afterMSAs,
-                    totalAddressableMarketAfter
+                    totalAddressableMarketAfter,
+                    tamFromNewMarkets
                   };
                 });
 
@@ -915,7 +975,7 @@ export function AcquisitionAnalysis({
                       <h4 className="font-medium">{acquiringProvider} - Current Position</h4>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Market Share (%)</p>
                         <p className="text-xl font-semibold text-amber-900">{baselineMarketSharePct.toFixed(2)}%</p>
@@ -923,6 +983,10 @@ export function AcquisitionAnalysis({
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Active MSAs</p>
                         <p className="text-xl font-semibold text-amber-900">{baselineMSAs.size}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Total Addressable Market</p>
+                        <p className="text-xl font-semibold text-amber-900">{formatCurrency(baselineTotalAddressableMarket)}</p>
                       </div>
                     </div>
                   </div>
@@ -981,38 +1045,34 @@ export function AcquisitionAnalysis({
                             </div>
                           </div>
 
-                          {/* Impact Details */}
-                          <div className="pb-3 border-b border-green-200">
-                            <p className="text-xs font-medium text-green-700 mb-2">IMPACT</p>
-                            <div className="space-y-1 text-xs">
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">Shared Markets:</span>
-                                <span className="font-medium text-orange-600">{franchise.msasImpacted}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">New Markets:</span>
-                                <span className="font-medium text-green-600">+{franchise.newMarketsEntered}</span>
-                              </div>
-                            </div>
-                          </div>
-
                           {/* After Position for Acquirer */}
                           <div>
-                            <p className="text-xs font-medium text-green-700 mb-2">{acquiringProvider} AFTER</p>
-                            <div className="space-y-2">
+                            <p className="text-xs font-medium text-green-700 mb-2">{acquiringProvider} AFTER ACQUISITION</p>
+                            <div className="space-y-3">
                               <div>
                                 <p className="text-xs text-muted-foreground">Market Share (%)</p>
                                 <p className="font-semibold text-green-900">{franchise.afterMarketSharePct.toFixed(2)}%</p>
-                                <p className="text-xs text-green-600">+{(franchise.afterMarketSharePct - baselineMarketSharePct).toFixed(2)}%</p>
+                                <p className="text-xs text-green-600">+{(franchise.afterMarketSharePct - baselineMarketSharePct).toFixed(2)}% from acquisition</p>
                               </div>
                               <div>
                                 <p className="text-xs text-muted-foreground">Active MSAs</p>
-                                <p className="font-semibold text-green-900">{franchise.afterMSAs}</p>
-                                <p className="text-xs text-green-600">+{franchise.newMarketsEntered}</p>
+                                <p className="font-semibold text-green-900">{franchise.afterMSAs} total</p>
+                                <p className="text-xs text-muted-foreground">
+                                  <span className="text-orange-600">{franchise.msasImpacted} shared</span>
+                                  {franchise.newMarketsEntered > 0 && (
+                                    <span className="text-green-600"> · +{franchise.newMarketsEntered} new markets</span>
+                                  )}
+                                </p>
                               </div>
                               <div>
                                 <p className="text-xs text-muted-foreground">Total Addressable Market</p>
                                 <p className="font-semibold text-green-900">{formatCurrency(franchise.totalAddressableMarketAfter)}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatCurrency(baselineTotalAddressableMarket)}
+                                  {franchise.newMarketsEntered > 0 && franchise.tamFromNewMarkets > 0 && (
+                                    <span className="text-green-600"> + {formatCurrency(franchise.tamFromNewMarkets)} ({franchise.newMarketsEntered} MSAs new from {franchise.providerName})</span>
+                                  )}
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -1055,6 +1115,12 @@ export function AcquisitionAnalysis({
               <p className="text-2xl font-semibold text-green-700">
                 {formatCurrency(selectedFranchiseData.totalAddressableMarketAfter)}
               </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {formatCurrency(selectedFranchiseData.baselineTotalAddressableMarket)}
+                {selectedFranchiseData.newMarketsEntered > 0 && selectedFranchiseData.tamFromNewMarkets > 0 && (
+                  <span className="text-green-600"> + {formatCurrency(selectedFranchiseData.tamFromNewMarkets)} ({selectedFranchiseData.newMarketsEntered} new from {selectedFranchise})</span>
+                )}
+              </p>
             </div>
           </div>
           {acquirerFootprint.filter(item => (item.newHHI - item.currentHHI) >= 200 && item.newHHI >= 1800).length > 0 && (
@@ -1093,14 +1159,15 @@ export function AcquisitionAnalysis({
                   type="number"
                   min="0"
                   max="20"
-                  value={haircutPercentage}
+                  step="0.01"
+                  value={haircutPercentage.toFixed(2)}
                   onChange={(e) => {
                     const value = parseFloat(e.target.value);
                     if (!isNaN(value) && value >= 0 && value <= 20) {
                       setHaircutPercentage(value);
                     }
                   }}
-                  className="w-14 h-7 text-center text-sm"
+                  className="w-20 h-7 text-center text-sm"
                 />
                 <span className="text-xs">%</span>
               </div>
@@ -1151,7 +1218,7 @@ export function AcquisitionAnalysis({
                               </div>
                               {haircutPercentage > 0 && (
                                 <div className="text-xs text-muted-foreground">
-                                  ({haircutAdjustedAcquiredShare.toFixed(1)}% after {haircutPercentage}% haircut)
+                                  ({haircutAdjustedAcquiredShare.toFixed(1)}% after {haircutPercentage.toFixed(2)}% haircut)
                                 </div>
                               )}
                             </div>
