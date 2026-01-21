@@ -5,14 +5,14 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Badge } from "./ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ScatterChart, Scatter, ZAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend } from "recharts";
-import { Search, ChevronDown, ChevronUp, Download, Eye, Filter, TrendingUp, MapPin, Info, BarChart3, Maximize2, Target, Loader2 } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, Download, Eye, Filter, TrendingUp, MapPin, Info, BarChart3, Maximize2, Target, Loader2, DollarSign, Building2, Users } from "lucide-react";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Checkbox } from "./ui/checkbox";
 import { ScrollArea } from "./ui/scroll-area";
 import { calculateDefensiveValue, calculateBucketModeScore, calculateAttractivenessScore, getCategoriesByQuartiles, DEFAULT_BUCKET_ASSIGNMENTS } from "../utils/scoreCalculation";
 import { applyGlobalFilters } from "../utils/applyGlobalFilters";
-import { fetchFilterBuckets, fetchMSADetails, fetchAllOpportunitiesRaw } from "../utils/csvDataHooks";
+import { fetchFilterBuckets, fetchMSADetails, fetchAllOpportunitiesRaw, fetchMSAAttractivenessWithDeposits } from "../utils/csvDataHooks";
 import { USAMap } from "./USAMap";
 import { MSADetailView } from "./MSADetailView";
 import { MSAEconomicProfile, MSAEconomicProfileCompact } from "./MSAEconomicProfile";
@@ -85,6 +85,8 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
   const [selectedPricing, setSelectedPricing] = useState("all");
   const [selectedGrowth, setSelectedGrowth] = useState("all");
   const [selectedForComparison, setSelectedForComparison] = useState<Set<string>>(new Set());
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [showAllRows, setShowAllRows] = useState(false);
   const [msaOpportunities, setMsaOpportunities] = useState<Record<string, OpportunityData[]>>({});
   const [loadingOpportunities, setLoadingOpportunities] = useState<Set<string>>(new Set());
   const [allOpportunities, setAllOpportunities] = useState<OpportunityData[]>([]);
@@ -93,11 +95,48 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
     revenuePerCompany?: { range: { min: number; max: number } };
   }>({});
   const [msaEconomicsMap, setMsaEconomicsMap] = useState<Record<string, MSAEconomicsData>>({});
+  const [msaAttractivenessData, setMsaAttractivenessData] = useState<Record<string, any[]>>({});
 
   // Get the selected MSA name when exactly one MSA is selected
   const selectedMSAName = selectedForComparison.size === 1 
     ? Array.from(selectedForComparison)[0] 
     : null;
+  
+  // Fetch attractiveness data (including Deposits) for selected MSAs
+  useEffect(() => {
+    const fetchAttractivenessData = async () => {
+      if (selectedForComparison.size === 0) {
+        setMsaAttractivenessData({});
+        return;
+      }
+      
+      const selectedMSAs = Array.from(selectedForComparison);
+      const newAttractivenessData: Record<string, any[]> = {};
+      
+      try {
+        // Fetch attractiveness data for all selected MSAs
+        await Promise.all(
+          selectedMSAs.map(async (msaName) => {
+            try {
+              const attractivenessData = await fetchMSAAttractivenessWithDeposits(msaName);
+              newAttractivenessData[msaName] = attractivenessData;
+            } catch (error) {
+              console.error(`Error fetching attractiveness data for ${msaName}:`, error);
+              // Fallback to using data prop
+              const allDataForMSA = data.filter(m => m.MSA === msaName);
+              newAttractivenessData[msaName] = allDataForMSA;
+            }
+          })
+        );
+        
+        setMsaAttractivenessData(newAttractivenessData);
+      } catch (error) {
+        console.error("Error fetching attractiveness data:", error);
+      }
+    };
+    
+    fetchAttractivenessData();
+  }, [selectedForComparison, data]);
   
   // Fetch MSA economics data when a single MSA is selected
   const { economics: msaEconomics } = useMSAEconomics(selectedMSAName);
@@ -233,7 +272,7 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
     }
     
     // Normal scoring parameters (High is good, Low is bad)
-    if (["Economic_Growth_Score", "Loan_Growth_Score", "International_CM_Score"].includes(parameterType)) {
+    if (["Economic_Growth_Score", "Loan_Growth_Score", "International_CM_Score", "Market_Size_Score", "Revenue_per_Company_Score"].includes(parameterType)) {
       if (normalized === "high") return "bg-green-50 text-green-700 border-green-300";
       if (normalized === "medium") return "bg-yellow-50 text-yellow-700 border-yellow-300";
       if (normalized === "low") return "bg-red-50 text-red-700 border-red-300";
@@ -276,6 +315,28 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
     if (normalized === "medium") return 2;
     if (normalized === "low") return 1;
     return 0;
+  };
+
+  // Get top MSAs by attractiveness score
+  const topMSAs = useMemo(() => {
+    const sorted = [...filteredData]
+      .sort((a, b) => b.Attractiveness_Score - a.Attractiveness_Score);
+    return showAllRows ? sorted : sorted.slice(0, 5);
+  }, [filteredData, showAllRows]);
+
+  // Toggle row expansion
+  const toggleRowExpansion = (msa: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(msa)) {
+      newExpanded.delete(msa);
+    } else {
+      newExpanded.add(msa);
+      // Fetch opportunities when expanding if not already loaded
+      if (!msaOpportunities[msa] && !loadingOpportunities.has(msa)) {
+        fetchOpportunitiesForMSA(msa);
+      }
+    }
+    setExpandedRows(newExpanded);
   };
 
 
@@ -511,6 +572,146 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
         onToggleSelection={toggleComparison}
       />
 
+      {/* Market Size & Company Metrics - shown when MSAs are selected */}
+      {selectedForComparison.size > 0 && (() => {
+        // Format number helper
+        const formatMarketSize = (num: number): string => {
+          if (num >= 1_000_000_000) {
+            return `$${(num / 1_000_000_000).toFixed(1)}B`;
+          }
+          if (num >= 1_000_000) {
+            return `$${(num / 1_000_000).toFixed(1)}M`;
+          }
+          if (num >= 1_000) {
+            return `$${(num / 1_000).toFixed(1)}K`;
+          }
+          return `$${num.toFixed(0)}`;
+        };
+
+        // Aggregate data across all selected MSAs
+        const selectedMSAs = Array.from(selectedForComparison);
+        let totalCashManagementMarketSize = 0;
+        let totalDepositsMarketSize = 0;
+        let totalNumberOfCompanies = 0; // Sum company counts from each MSA
+        
+        selectedMSAs.forEach(msaName => {
+          const attractivenessDataForMSA = msaAttractivenessData[msaName] || [];
+          
+          // Get market size by product from attractiveness data
+          const cashManagementData = attractivenessDataForMSA.find(m => {
+            const product = m.Product?.toLowerCase() || "";
+            return product.includes("cash") || product.includes("credit") || 
+                   (product !== "deposits" && m.Product !== "Deposits");
+          });
+          
+          const depositsData = attractivenessDataForMSA.find(m => 
+            m.Product === "Deposits" || m.Product?.toLowerCase() === "deposits"
+          );
+          
+          if (cashManagementData) {
+            totalCashManagementMarketSize += parseFloat(String(cashManagementData["Market Size"] || 0));
+            
+            // Get Number of Companies from attractiveness data (same for both Cash Management and Deposits)
+            // Only count once per MSA, not per product
+            const numCompanies = cashManagementData["Number of Companies"];
+            if (numCompanies !== undefined && numCompanies !== null) {
+              const companyCount = typeof numCompanies === 'number' 
+                ? numCompanies 
+                : parseFloat(String(numCompanies));
+              if (!isNaN(companyCount) && companyCount > 0) {
+                totalNumberOfCompanies += companyCount;
+              }
+            }
+          }
+          
+          if (depositsData) {
+            totalDepositsMarketSize += parseFloat(String(depositsData["Market Size"] || 0));
+          }
+        });
+        
+        const totalMarketSize = totalCashManagementMarketSize + totalDepositsMarketSize;
+        const numberOfCompanies = totalNumberOfCompanies;
+        const averageRevenuePerCompany = numberOfCompanies > 0 ? totalMarketSize / numberOfCompanies : 0;
+
+        return (
+          <Card className="p-4 bg-gradient-to-br from-slate-50 to-white border-slate-200">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-slate-600" />
+                <h3 className="font-semibold text-slate-800">
+                  Market Overview
+                  {selectedMSAs.length > 1 && (
+                    <span className="text-sm font-normal text-slate-500 ml-2">
+                      ({selectedMSAs.length} MSAs)
+                    </span>
+                  )}
+                </h3>
+              </div>
+            </div>
+
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Cash Management Market Size */}
+              <div className="bg-white rounded-lg p-3 border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-slate-500">Cash Management</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <DollarSign className="h-4 w-4 text-slate-400" />
+                  <span className="text-lg font-bold text-slate-800">
+                    {formatMarketSize(totalCashManagementMarketSize)}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-0.5">Market Size</p>
+              </div>
+
+              {/* Deposits Market Size */}
+              <div className="bg-white rounded-lg p-3 border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-slate-500">Deposits</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <DollarSign className="h-4 w-4 text-slate-400" />
+                  <span className="text-lg font-bold text-slate-800">
+                    {formatMarketSize(totalDepositsMarketSize)}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-0.5">Market Size</p>
+              </div>
+
+              {/* Number of Companies */}
+              <div className="bg-white rounded-lg p-3 border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-slate-500">Number of Companies</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <Building2 className="h-4 w-4 text-slate-400" />
+                  <span className="text-lg font-bold text-slate-800">
+                    {numberOfCompanies}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-0.5">Companies</p>
+              </div>
+
+              {/* Average Revenue per Company */}
+              <div className="bg-white rounded-lg p-3 border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-slate-500">Avg Revenue/Company</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <Users className="h-4 w-4 text-slate-400" />
+                  <span className="text-lg font-bold text-slate-800">
+                    {formatMarketSize(averageRevenuePerCompany)}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-0.5">Total ÷ companies</p>
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
+
       {/* MSA Economic Profile - shown when a single MSA is selected */}
       {selectedForComparison.size === 1 && msaEconomics && selectedMSAName && (
         <MSAEconomicProfile 
@@ -561,7 +762,8 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
 
       {/* Comparison View (Multiple Selection) */}
       {comparisonData && selectedForComparison.size > 1 && (
-        <Card className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-2 border-blue-200 dark:border-blue-800">
+        <>
+          <Card className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-2 border-blue-200 dark:border-blue-800">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="mb-1">MSA Comparison ({selectedForComparison.size} selected)</h3>
@@ -612,6 +814,58 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
                   
                   // Get opportunities for this MSA
                   const opportunities = msaOpportunities[msa.MSA] || [];
+
+                  // Get Market Overview data for this specific MSA
+                  const attractivenessDataForMSA = msaAttractivenessData[msa.MSA] || [];
+                  const msaOpportunitiesForCard = msaOpportunities[msa.MSA] || [];
+                  
+                  // Get market size by product from attractiveness data
+                  const cashManagementData = attractivenessDataForMSA.find(m => {
+                    const product = m.Product?.toLowerCase() || "";
+                    return product.includes("cash") || product.includes("credit") || 
+                           (product !== "deposits" && m.Product !== "Deposits");
+                  });
+                  
+                  const depositsData = attractivenessDataForMSA.find(m => 
+                    m.Product === "Deposits" || m.Product?.toLowerCase() === "deposits"
+                  );
+                  
+                  const cashManagementMarketSize = cashManagementData 
+                    ? parseFloat(String(cashManagementData["Market Size"] || 0)) 
+                    : 0;
+                  const depositsMarketSize = depositsData 
+                    ? parseFloat(String(depositsData["Market Size"] || 0)) 
+                    : 0;
+                  const totalMarketSize = cashManagementMarketSize + depositsMarketSize;
+                  
+                  // Get number of companies from attractiveness data (same for both Cash Management and Deposits)
+                  let numberOfCompanies = 0;
+                  if (cashManagementData && cashManagementData["Number of Companies"] !== undefined) {
+                    const numCompanies = cashManagementData["Number of Companies"];
+                    numberOfCompanies = typeof numCompanies === 'number' 
+                      ? numCompanies 
+                      : parseFloat(String(numCompanies));
+                    if (isNaN(numberOfCompanies)) {
+                      numberOfCompanies = 0;
+                    }
+                  }
+                  
+                  // Calculate average revenue per company
+                  const averageRevenuePerCompany = numberOfCompanies > 0 ? totalMarketSize / numberOfCompanies : 0;
+                  
+                  // Format number helper
+                  const formatMarketSize = (num: number): string => {
+                    if (num >= 1_000_000_000) {
+                      return `$${(num / 1_000_000_000).toFixed(1)}B`;
+                    }
+                    if (num >= 1_000_000) {
+                      return `$${(num / 1_000_000).toFixed(1)}M`;
+                    }
+                    if (num >= 1_000) {
+                      return `$${(num / 1_000).toFixed(1)}K`;
+                    }
+                    return `$${num.toFixed(0)}`;
+                  };
 
                   return (
                     <div key={msa.MSA} className="bg-white dark:bg-gray-900 rounded-lg border p-4 flex flex-col min-h-[500px]">
@@ -680,6 +934,36 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
                           </tbody>
                         </table>
                         
+                        {/* Market Overview for this MSA */}
+                        <div className="mb-3 bg-slate-50 rounded-lg p-2 border border-slate-200">
+                          <div className="text-[10px] font-medium text-slate-500 mb-1.5 flex items-center gap-1">
+                            <BarChart3 className="h-3 w-3" />
+                            Market Overview
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {/* Cash Management */}
+                            <div className="flex items-center justify-between bg-white rounded px-1.5 py-1 border border-slate-100">
+                              <span className="text-[10px] text-slate-500">Cash Mgmt</span>
+                              <span className="text-[10px] font-semibold">{formatMarketSize(cashManagementMarketSize)}</span>
+                            </div>
+                            {/* Deposits */}
+                            <div className="flex items-center justify-between bg-white rounded px-1.5 py-1 border border-slate-100">
+                              <span className="text-[10px] text-slate-500">Deposits</span>
+                              <span className="text-[10px] font-semibold">{formatMarketSize(depositsMarketSize)}</span>
+                            </div>
+                            {/* Number of Companies */}
+                            <div className="flex items-center justify-between bg-white rounded px-1.5 py-1 border border-slate-100">
+                              <span className="text-[10px] text-slate-500">Companies</span>
+                              <span className="text-[10px] font-semibold">{numberOfCompanies}</span>
+                            </div>
+                            {/* Avg Revenue/Company */}
+                            <div className="flex items-center justify-between bg-white rounded px-1.5 py-1 border border-slate-100">
+                              <span className="text-[10px] text-slate-500">Avg Rev/Co</span>
+                              <span className="text-[10px] font-semibold">{formatMarketSize(averageRevenuePerCompany)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
                         {/* Economic Indicators (Compact) */}
                         {msaEconomicsMap[msa.MSA] && (
                           <div className="mt-3">
@@ -706,6 +990,7 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
               </div>
           </div>
         </Card>
+        </>
       )}
 
       {/* Filters & List Section (Only when no selection) */}
@@ -903,7 +1188,316 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
             </Card>
           )}
 
+          {/* Top 5 MSAs by Attractiveness Score */}
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="mb-1">
+                  {showAllRows ? `All ${filteredData.length} MSAs` : "Top 5 MSAs"} by Attractiveness Score
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Click on any row to see detailed breakdown of all scoring parameters
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAllRows(!showAllRows)}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  {showAllRows ? "Show Top 5" : `Show All ${filteredData.length}`}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportToCSV}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-2 w-12">
+                      <span className="sr-only">Select</span>
+                    </th>
+                    <th className="text-left py-3 px-3">Rank</th>
+                    <th className="text-left py-3 px-3">MSA</th>
+                    <th className="text-left py-3 px-3">Score</th>
+                    <th className="text-left py-3 px-3">Market Attractiveness</th>
+                    <th className="text-left py-3 px-3">Market Size</th>
+                    <th className="text-left py-3 px-3">Market Conc.</th>
+                    <th className="text-left py-3 px-3">Econ. Growth</th>
+                    <th className="text-left py-3 px-3">Loan Growth</th>
+                    <th className="text-left py-3 px-3">Risk</th>
+                    <th className="text-left py-3 px-3">Risk Migration</th>
+                    <th className="text-left py-3 px-3">Rel. Risk Mig.</th>
+                    <th className="text-left py-3 px-3">Premium/Disc.</th>
+                    <th className="text-left py-3 px-3">Pricing</th>
+                    <th className="text-left py-3 px-3">Intl. CM</th>
+                    <th className="text-left py-3 px-3 w-12"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topMSAs.map((msa, idx) => {
+                    const isExpanded = expandedRows.has(msa.MSA);
+                    const isSelected = selectedForComparison.has(msa.MSA);
+                    
+                    return (
+                      <React.Fragment key={msa.MSA}>
+                        <tr 
+                          className={`border-b hover:bg-muted/50 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}
+                          onClick={() => toggleRowExpansion(msa.MSA)}
+                        >
+                          <td className="py-3 px-2" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleComparison(msa.MSA)}
+                              disabled={!isSelected && selectedForComparison.size >= 5}
+                            />
+                          </td>
+                          <td className="py-3 px-3">{idx + 1}</td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">{msa.MSA}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{msa.Attractiveness_Score.toFixed(2)}</span>
+                              <TrendingUp className="h-3 w-3 text-green-600" />
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <Badge className={getAttractivenessColor(msa.Attractiveness_Category)}>
+                              {msa.Attractiveness_Category}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-3 text-sm">
+                            ${(msa["Market Size"] / 1000000).toFixed(1)}M
+                          </td>
+                          <td className="py-3 px-3">
+                            <Badge variant="outline" className={`text-xs ${getParameterColor("HHI_Score", msa.HHI_Score)}`}>{msa.HHI_Score}</Badge>
+                          </td>
+                          <td className="py-3 px-3">
+                            <Badge variant="outline" className={`text-xs ${getParameterColor("Economic_Growth_Score", msa.Economic_Growth_Score)}`}>{msa.Economic_Growth_Score}</Badge>
+                          </td>
+                          <td className="py-3 px-3">
+                            <Badge variant="outline" className={`text-xs ${getParameterColor("Loan_Growth_Score", msa.Loan_Growth_Score)}`}>{msa.Loan_Growth_Score}</Badge>
+                          </td>
+                          <td className="py-3 px-3">
+                            <Badge variant="outline" className={`text-xs ${getParameterColor("Risk_Score", msa.Risk_Score)}`}>{msa.Risk_Score}</Badge>
+                          </td>
+                          <td className="py-3 px-3">
+                            <Badge variant="outline" className={`text-xs ${getParameterColor("Risk_Migration_Score", msa.Risk_Migration_Score)}`}>{msa.Risk_Migration_Score}</Badge>
+                          </td>
+                          <td className="py-3 px-3">
+                            <Badge variant="outline" className={`text-xs ${getParameterColor("Relative_Risk_Migration_Score", msa.Relative_Risk_Migration_Score)}`}>{msa.Relative_Risk_Migration_Score}</Badge>
+                          </td>
+                          <td className="py-3 px-3">
+                            <Badge variant="outline" className={`text-xs ${getParameterColor("Premium_Discount_Score", msa.Premium_Discount_Score)}`}>{msa.Premium_Discount_Score}</Badge>
+                          </td>
+                          <td className="py-3 px-3">
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${getParameterColor("Pricing_Rationality_Score", msa.Pricing_Rationality)}`}
+                            >
+                              {msa.Pricing_Rationality}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-3">
+                            <Badge variant="outline" className={`text-xs ${getParameterColor("International_CM_Score", msa.International_CM_Score)}`}>{msa.International_CM_Score}</Badge>
+                          </td>
+                          <td className="py-3 px-3">
+                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </td>
+                        </tr>
+                        
+                        {/* Expanded Row Details */}
+                        {isExpanded && (
+                          <tr className="border-b bg-muted/30">
+                            <td colSpan={16} className="p-4">
+                              <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                  <Card className="p-4 bg-card">
+                                    <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                                      <BarChart3 className="h-4 w-4" />
+                                      Market Metrics
+                                    </h4>
+                                    <div className="space-y-2 text-sm">
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Market Size:</span>
+                                        <Badge variant="outline" className={`text-xs ${getParameterColor("Market_Size_Score", msa.Market_Size_Score)}`}>{msa.Market_Size_Score}</Badge>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Market Concentration:</span>
+                                        <Badge variant="outline" className={`text-xs ${getParameterColor("HHI_Score", msa.HHI_Score)}`}>{msa.HHI_Score}</Badge>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">International CM:</span>
+                                        <Badge variant="outline" className={`text-xs ${getParameterColor("International_CM_Score", msa.International_CM_Score)}`}>{msa.International_CM_Score}</Badge>
+                                      </div>
+                                    </div>
+                                  </Card>
 
+                                  <Card className="p-4 bg-card">
+                                    <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                                      <TrendingUp className="h-4 w-4" />
+                                      Growth & Risk
+                                    </h4>
+                                    <div className="space-y-2 text-sm">
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Economic Growth:</span>
+                                        <Badge variant="outline" className={`text-xs ${getParameterColor("Economic_Growth_Score", msa.Economic_Growth_Score)}`}>{msa.Economic_Growth_Score}</Badge>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Loan Growth:</span>
+                                        <Badge variant="outline" className={`text-xs ${getParameterColor("Loan_Growth_Score", msa.Loan_Growth_Score)}`}>{msa.Loan_Growth_Score}</Badge>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Credit Risk:</span>
+                                        <Badge variant="outline" className={`text-xs ${getParameterColor("Risk_Score", msa.Risk_Score)}`}>{msa.Risk_Score}</Badge>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Risk Migration:</span>
+                                        <Badge variant="outline" className={`text-xs ${getParameterColor("Risk_Migration_Score", msa.Risk_Migration_Score)}`}>{msa.Risk_Migration_Score}</Badge>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Relative Risk Migration:</span>
+                                        <Badge variant="outline" className={`text-xs ${getParameterColor("Relative_Risk_Migration_Score", msa.Relative_Risk_Migration_Score)}`}>{msa.Relative_Risk_Migration_Score}</Badge>
+                                      </div>
+                                    </div>
+                                  </Card>
+
+                                  <Card className="p-4 bg-card">
+                                    <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                                      <Info className="h-4 w-4" />
+                                      Pricing & Other
+                                    </h4>
+                                    <div className="space-y-2 text-sm">
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Premium/Discount:</span>
+                                        <Badge variant="outline" className={`text-xs ${getParameterColor("Premium_Discount_Score", msa.Premium_Discount_Score)}`}>{msa.Premium_Discount_Score}</Badge>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Pricing Rationality:</span>
+                                        <Badge variant="outline" className={`text-xs ${getParameterColor("Pricing_Rationality_Score", msa.Pricing_Rationality_Score)}`}>{msa.Pricing_Rationality_Score}</Badge>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Revenue per Company:</span>
+                                        <Badge variant="outline" className={`text-xs ${getParameterColor("Revenue_per_Company_Score", msa.Revenue_per_Company_Score)}`}>{msa.Revenue_per_Company_Score}</Badge>
+                                      </div>
+                                      {msa.Pricing_Rationality_Explanation && (
+                                        <div className="pt-2 border-t">
+                                          <p className="text-xs text-muted-foreground italic">
+                                            {msa.Pricing_Rationality_Explanation}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </Card>
+                                </div>
+                                
+                                {/* All Opportunities for this MSA */}
+                                {msaOpportunities[msa.MSA] && msaOpportunities[msa.MSA].length > 0 && (
+                                  <Card className="p-4 bg-card">
+                                    <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                                      <Target className="h-4 w-4" />
+                                      Competitive Landscape
+                                    </h4>
+                                    <ScrollArea className="h-96">
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                          <thead className="sticky top-0 bg-card z-10">
+                                            <tr className="border-b">
+                                              <th className="text-left py-2 px-2">#</th>
+                                              <th className="text-left py-2 px-2">Provider</th>
+                                              <th className="text-right py-2 px-2">Market Share</th>
+                                              <th className="text-right py-2 px-2">Market Share at Risk</th>
+                                              <th className="text-right py-2 px-2">Market Size</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {msaOpportunities[msa.MSA].map((opp, oppIdx) => {
+                                              const marketShare = parseFloat(String(opp["Market Share"] || 0));
+                                              const marketSize = parseFloat(String(opp["Market Size"] || 0));
+                                              const defendDollars = parseFloat(String(opp["Defend $"] || 0));
+                                              const providerMarketShareDollars = marketShare * marketSize;
+                                              
+                                              const percentageAtRisk = providerMarketShareDollars === 0 ? 0 : (defendDollars / providerMarketShareDollars) * 100;
+                                              const isProviderSelected = selectedProviders?.has(opp.Provider) || false;
+                                              
+                                              return (
+                                                <tr 
+                                                  key={`${opp.Provider}-${oppIdx}`} 
+                                                  onClick={() => onToggleProviderSelection?.(opp.Provider)}
+                                                  className={`border-b cursor-pointer transition-colors ${
+                                                    isProviderSelected 
+                                                      ? 'bg-blue-50 dark:bg-blue-950/20 border-l-4 border-l-blue-500 font-semibold' 
+                                                      : 'hover:bg-muted/50'
+                                                  }`}
+                                                >
+                                                  <td className="py-2 px-2">{oppIdx + 1}</td>
+                                                  <td className="py-2 px-2 font-medium">{opp.Provider}</td>
+                                                  <td className="py-2 px-2 text-right">
+                                                    {(marketShare * 100).toFixed(1)}%
+                                                  </td>
+                                                  <td className="py-2 px-2 text-right">
+                                                    {(() => {
+                                                      if (percentageAtRisk < 5) return "<5%";
+                                                      if (percentageAtRisk > 25) return ">25%";
+                                                      return `${percentageAtRisk.toFixed(1)}%`;
+                                                    })()}
+                                                  </td>
+                                                  <td className="py-2 px-2 text-right">
+                                                    ${(marketSize / 1000000).toFixed(1)}M
+                                                  </td>
+                                                </tr>
+                                              );
+                                            })}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </ScrollArea>
+                                  </Card>
+                                )}
+                                
+                                {/* Loading state for opportunities */}
+                                {loadingOpportunities.has(msa.MSA) && (
+                                  <Card className="p-4 bg-card">
+                                    <div className="flex items-center justify-center py-4 text-muted-foreground">
+                                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                      <span className="text-sm">Loading opportunities...</span>
+                                    </div>
+                                  </Card>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            
+            {!showAllRows && filteredData.length > 5 && (
+              <div className="mt-4 text-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAllRows(true)}
+                >
+                  Show All {filteredData.length} MSAs
+                </Button>
+              </div>
+            )}
+          </Card>
           
           {/* Competitive Landscape Table (National Level) */}
           <OpportunitiesTable 

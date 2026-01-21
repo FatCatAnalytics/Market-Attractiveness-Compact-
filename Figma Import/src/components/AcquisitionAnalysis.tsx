@@ -630,11 +630,12 @@ export function AcquisitionAnalysis({
   }, [acquiringProvider, selectedFranchise, marketData]);
 
   // Initialize haircut percentage to franchise's at-risk percentage when a franchise is selected
+  // Floored at 10% and maxed at 50%
   useEffect(() => {
     if (selectedFranchise && selectedFranchiseData && selectedFranchiseData.franchisePercentageAtRisk > 0) {
-      // Round to 2 decimal places and clamp between 0 and 20
+      // Round to 2 decimal places and clamp between 10 and 50
       const atRiskPct = Math.round(selectedFranchiseData.franchisePercentageAtRisk * 100) / 100;
-      setHaircutPercentage(Math.min(Math.max(atRiskPct, 0), 20));
+      setHaircutPercentage(Math.min(Math.max(atRiskPct, 10), 50));
     }
   }, [selectedFranchise, selectedFranchiseData]);
 
@@ -1157,13 +1158,13 @@ export function AcquisitionAnalysis({
                 <Input
                   id="haircut-compact"
                   type="number"
-                  min="0"
-                  max="20"
+                  min="10"
+                  max="50"
                   step="0.01"
                   value={haircutPercentage.toFixed(2)}
                   onChange={(e) => {
                     const value = parseFloat(e.target.value);
-                    if (!isNaN(value) && value >= 0 && value <= 20) {
+                    if (!isNaN(value) && value >= 10 && value <= 50) {
                       setHaircutPercentage(value);
                     }
                   }}

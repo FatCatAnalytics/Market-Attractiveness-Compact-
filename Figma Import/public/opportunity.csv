@@ -1,5 +1,5 @@
 MSA,LAT,LON,Provider,Market Size,Number of Companies,Market Share,Defend $,Product,Exclusion,Included_In_Ranking,Provider_Ratio,Benchmark,Competitor_Ratio,Provider_Opportunity_Rank,Overall_Opportunity_Rank,Opportunity_Score,Opportunity_Category,Firm ID,Total_Weight,Number_of_Occurrences,Weighted_Average_Score
-AL-Birmingham,33.462372,-86.814338,Ally Bank (formerly GMAC),110814172,677,0.002,0,Credit_Cash_Management,TRUE,FALSE,,,,,,,,5221,8.13,2,4
+AL-Birmingham,33.462372,-86.814338,Ally Bank (formerly GMAC),110814172,677,0.002,0,Credit_Cash_Management,TRUE,FALSE,,,,,,,,5221,8.13,2,4.00
 AL-Birmingham,33.462372,-86.814338,American Express,110814172,677,0.008,0,Credit_Cash_Management,TRUE,FALSE,,,,,,,,171,28.66,4,4.432658758
 AL-Birmingham,33.462372,-86.814338,Bank of America,110814172,677,0.023,2570062,Credit_Cash_Management,TRUE,FALSE,,,,,,,,4836,47.7,14,4.72851153
 AL-Birmingham,33.462372,-86.814338,CIT,110814172,677,0.002,0,Credit_Cash_Management,FALSE,TRUE,0,0.034809829,0,7,361,inf,Good,,,,

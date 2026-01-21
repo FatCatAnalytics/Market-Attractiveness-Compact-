@@ -706,11 +706,9 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
         });
         const totalMarketSizeInScope = Array.from(msaMarketSizes.values()).reduce((sum, size) => sum + size, 0);
         
-        // For backward compatibility, also calculate national total (used when no MSA filter)
-        const totalNationalMarketSize = selectedMSA === "all" 
-          ? totalMarketSizeInScope
-          : Array.from(new Map(attractivenessData.map(item => [item.MSA, parseFloat(String(item["Market Size"] || 0))])).values())
-              .reduce((sum, size) => sum + size, 0);
+        // Calculate national total market size (ALWAYS used for table rows)
+        const totalNationalMarketSize = Array.from(new Map(attractivenessData.map(item => [item.MSA, parseFloat(String(item["Market Size"] || 0))])).values())
+          .reduce((sum, size) => sum + size, 0);
         
         // Get ALL providers that operate in these MSAs (not just selected ones)
         // Use filteredMarketData to ensure we respect the MSA filter
@@ -721,9 +719,12 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
           }
         });
         
+        // Check if we're at national level (no MSAs selected)
+        const isNationalLevel = (preselectedMSAs?.size === 0 || !preselectedMSAs) && selectedMSA === "all";
+        
         // Calculate metrics for ALL providers to establish benchmarks
         // Use filteredMarketData to ensure we're only looking at the selected MSA(s)
-        const allProviderMetrics = Array.from(allProvidersInScope).map(provider => {
+        let allProviderMetrics = Array.from(allProvidersInScope).map(provider => {
           const providerOpps = filteredMarketData.filter(opp => 
             opp.Provider === provider && 
             msasInScope.has(opp.MSA)
@@ -783,9 +784,17 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
           marketSharePct: number;
           regionCount: number;
           satisfaction: number | null;
-          stabilityScore: number;
+          revenueAtRiskScore: number;
           qualityScore: number;
         }>;
+        
+        // If national level, use only top 20 providers by market share
+        if (isNationalLevel && allProviderMetrics.length > 20) {
+          // Sort by market share descending and take top 20
+          allProviderMetrics = allProviderMetrics
+            .sort((a, b) => b.marketSharePct - a.marketSharePct)
+            .slice(0, 20);
+        }
         
         // Calculate min/max benchmarks for each metric
         const benchmarks = {
@@ -857,9 +866,12 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
         // END BENCHMARKS
         // ============================================
 
-        // Calculate aggregate metrics for each provider
+        // For table rows: Always use NATIONAL data (not MSA-filtered)
+        const nationalProviderOpportunities = filteredMarketDataWithoutMSA.filter(opp => providersToShow.has(opp.Provider));
+
+        // Calculate aggregate metrics for each provider (NATIONAL data for table rows)
         const providerAggregates = Array.from(providersToShow).map(provider => {
-          const providerOpps = selectedProviderOpportunities.filter(opp => opp.Provider === provider);
+          const providerOpps = nationalProviderOpportunities.filter(opp => opp.Provider === provider);
           
           // Count unique MSAs
           const msaCount = new Set(providerOpps.map(opp => opp.MSA)).size;
@@ -871,10 +883,8 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
             return sum + (marketShare * marketSize);
           }, 0);
           
-          // Calculate market share percentage (scoped to selected MSAs or national)
-          const marketSharePct = selectedMSA !== "all" 
-            ? (totalMarketSizeInScope === 0 ? 0 : (totalFranchiseShareDollars / totalMarketSizeInScope) * 100)
-            : (totalNationalMarketSize === 0 ? 0 : (totalFranchiseShareDollars / totalNationalMarketSize) * 100);
+          // Calculate market share percentage (ALWAYS NATIONAL for table rows)
+          const marketSharePct = totalNationalMarketSize === 0 ? 0 : (totalFranchiseShareDollars / totalNationalMarketSize) * 100;
           const nationalMarketSharePct = marketSharePct; // Keep variable name for compatibility
           
           // Sum up market share at risk
@@ -1017,8 +1027,9 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                   // Update selectedProviders state to match tableSelectedProviders
                   setSelectedProviders(new Set(tableSelectedProviders));
                   
-                  // Get all opportunities for selected providers from the table
-                  const franchisesToAnalyze = filteredData.filter(opp => 
+                  // Get all opportunities for selected providers from marketData (includes all providers, not just Included_In_Ranking)
+                  // This ensures providers like Truist that may have Included_In_Ranking=false still appear in analysis
+                  const franchisesToAnalyze = filteredMarketData.filter(opp => 
                     tableSelectedProviders.has(opp.Provider)
                   );
                   
@@ -1093,26 +1104,32 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {((preselectedMSAs && preselectedMSAs.size > 0) || selectedMSA !== "all") && selectedProviders.size === 0 
-                        ? preselectedMSAs && preselectedMSAs.size > 1
-                          ? `Metrics for ${providersToShow.size} franchise${providersToShow.size > 1 ? 's' : ''} · Benchmarked vs ${allProvidersInScope.size} providers across ${preselectedMSAs.size} selected MSAs`
-                          : `Metrics for ${providersToShow.size} franchise${providersToShow.size > 1 ? 's' : ''} · Benchmarked vs ${allProvidersInScope.size} providers in this MSA`
-                        : `National-level metrics · Benchmarked vs ${allProvidersInScope.size} providers in selected scope`}
+                      {(preselectedMSAs && preselectedMSAs.size > 0) || selectedMSA !== "all"
+                        ? (() => {
+                            // Get MSA names for display
+                            const msaNames = preselectedMSAs && preselectedMSAs.size > 0
+                              ? Array.from(preselectedMSAs)
+                              : selectedMSA !== "all"
+                                ? [selectedMSA]
+                                : [];
+                            
+                            const msaNamesList = msaNames.length > 0
+                              ? msaNames.length > 3
+                                ? `${msaNames.slice(0, 3).join(", ")} and ${msaNames.length - 3} more`
+                                : msaNames.join(", ")
+                              : "";
+                            
+                            return msaNames.length > 1
+                              ? `MSA-level metrics · Benchmarked vs ${allProviderMetrics.length} providers in ${msaNamesList} MSAs`
+                              : `MSA-level metrics · Benchmarked vs ${allProviderMetrics.length} providers in ${msaNamesList} MSA`;
+                          })()
+                        : `National-level metrics · Benchmarked vs top 20 providers nationally`}
                     </p>
                   </div>
                 </div>
                 {/* Spider Chart Legend */}
                 <div className="text-[10px] text-muted-foreground bg-muted/30 px-3 py-2 rounded-lg">
                   <div className="grid grid-cols-1 gap-0.5">
-                    <div className="font-semibold text-primary mb-1">
-                      vs {allProvidersInScope.size} providers in {
-                        preselectedMSAs && preselectedMSAs.size > 1 
-                          ? `${preselectedMSAs.size} MSAs`
-                          : (preselectedMSAs && preselectedMSAs.size === 1) || selectedMSA !== "all"
-                            ? "MSA"
-                            : "scope"
-                      }
-                    </div>
                     <div><strong>Market Share</strong> = Market share percentage</div>
                     <div><strong>Regional Breadth</strong> = Number of regions served</div>
                     <div><strong>Satisfaction</strong> = Customer satisfaction score</div>
@@ -1130,42 +1147,81 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                         <span className="font-medium text-sm">Metric</span>
                       </th>
                       {providerAggregates.map((agg, idx) => {
+                        // Calculate spider chart metrics using MSA-FILTERED data
+                        const msaFilteredOpps = selectedProviderOpportunities.filter(opp => opp.Provider === agg.provider);
+                        
+                        // Market Share in selected MSA(s)
+                        const msaFilteredFranchiseShare = msaFilteredOpps.reduce((sum, opp) => {
+                          const marketShare = parseFloat(String(opp["Market Share"] || 0));
+                          const marketSize = parseFloat(String(opp["Market Size"] || 0));
+                          return sum + (marketShare * marketSize);
+                        }, 0);
+                        const msaFilteredMarketSharePct = totalMarketSizeInScope === 0 ? 0 : (msaFilteredFranchiseShare / totalMarketSizeInScope) * 100;
+                        
+                        // Regional Coverage in selected MSA(s)
+                        const msaFilteredRegions = new Set(msaFilteredOpps.map(opp => getRegionFromStateCodes(opp.MSA)));
+                        const msaFilteredRegionCount = msaFilteredRegions.size;
+                        
+                        // Customer Satisfaction in selected MSA(s)
+                        const msaFilteredSatisfactionScores = msaFilteredOpps
+                          .map(opp => (opp as any).Weighted_Average_Score)
+                          .filter(score => score !== null && score !== undefined && !isNaN(score));
+                        const msaFilteredSatisfaction = msaFilteredSatisfactionScores.length > 0
+                          ? msaFilteredSatisfactionScores.reduce((sum, score) => sum + score, 0) / msaFilteredSatisfactionScores.length
+                          : 2.5;
+                        
+                        // Revenue at Risk in selected MSA(s)
+                        const msaFilteredAtRisk = msaFilteredOpps.reduce((sum, opp) => sum + parseFloat(String(opp["Defend $"] || 0)), 0);
+                        const msaFilteredAtRiskPct = msaFilteredFranchiseShare === 0 ? 0 : (msaFilteredAtRisk / msaFilteredFranchiseShare) * 100;
+                        const msaFilteredRevenueAtRiskScore = Math.max(0, 100 - msaFilteredAtRiskPct * 2);
+                        
+                        // Quality (% in attractive markets) in selected MSA(s)
+                        let msaFilteredGoodRevenue = 0;
+                        msaFilteredOpps.forEach(opp => {
+                          const marketShare = parseFloat(String(opp["Market Share"] || 0));
+                          const marketSize = parseFloat(String(opp["Market Size"] || 0));
+                          const revenue = marketShare * marketSize;
+                          const attr = opp.Attractiveness_Category?.toLowerCase() || '';
+                          if (attr.includes('highly attractive') || attr === 'attractive') {
+                            msaFilteredGoodRevenue += revenue;
+                          }
+                        });
+                        const msaFilteredQualityScore = msaFilteredFranchiseShare === 0 ? 0 : (msaFilteredGoodRevenue / msaFilteredFranchiseShare) * 100;
+                        
                         // Calculate normalized scores for radar chart (0-100 scale)
                         // Using Best-in-Class benchmarks from ALL providers in scope
                         
                         // Market Share - percentile vs all providers in MSAs
                         const marketShareScore = calculatePercentileScore(
-                          agg.nationalMarketSharePct, 
+                          msaFilteredMarketSharePct, 
                           benchmarks.marketShare.min, 
                           benchmarks.marketShare.max
                         );
                         
                         // Regional Coverage - percentile vs all providers
                         const coverageScore = calculatePercentileScore(
-                          agg.regionCount,
+                          msaFilteredRegionCount,
                           benchmarks.regionCount.min,
                           benchmarks.regionCount.max
                         );
                         
                         // Customer Satisfaction - percentile vs all providers
-                        const rawSatisfaction = agg.customerSatisfactionScore !== null ? agg.customerSatisfactionScore : 2.5;
                         const satisfactionScore = calculatePercentileScore(
-                          rawSatisfaction,
+                          msaFilteredSatisfaction,
                           benchmarks.satisfaction.min || 0,
                           benchmarks.satisfaction.max || 5
                         );
                         
                         // Revenue at Risk - percentile vs all providers (inverted - lower risk = higher score)
-                        const rawRevenueAtRisk = Math.max(0, 100 - agg.percentageAtRisk * 2);
                         const revenueAtRiskScore = calculatePercentileScore(
-                          rawRevenueAtRisk,
+                          msaFilteredRevenueAtRiskScore,
                           benchmarks.revenueAtRisk.min,
                           benchmarks.revenueAtRisk.max
                         );
                         
                         // Quality (% in attractive markets) - percentile vs all providers
                         const qualityScore = calculatePercentileScore(
-                          agg.revenueByAttractivenessPercent.good,
+                          msaFilteredQualityScore,
                           benchmarks.quality.min,
                           benchmarks.quality.max
                         );

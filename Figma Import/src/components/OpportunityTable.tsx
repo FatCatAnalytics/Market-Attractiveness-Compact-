@@ -5,7 +5,10 @@ import { Badge } from "./ui/badge";
 import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/label";
 import { Button } from "./ui/button";
-import { Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
+import { Input } from "./ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./ui/command";
+import { Eye, EyeOff, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { fetchAllOpportunitiesRaw, fetchFilterBuckets } from "../utils/csvDataHooks";
 import { applyGlobalFilters } from "../utils/applyGlobalFilters";
@@ -39,12 +42,19 @@ interface OpportunitiesTableProps {
   onToggleProviderSelection?: (provider: string) => void;
 }
 
+type SortColumn = "provider" | "overallShareSize" | "msasPenetrated" | "marketShareAtRisk" | "customerSatisfactionScore";
+type SortDirection = "asc" | "desc" | null;
+
 export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData = [], selectedProviders, onToggleProviderSelection }: OpportunitiesTableProps) {
   const [opportunities, setOpportunities] = useState<OpportunityData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCompetitiveLandscape, setShowCompetitiveLandscape] = useState(true); // Visible by default
   const [showOnlyIncludedInRanking, setShowOnlyIncludedInRanking] = useState(false); // When true, show only Included_In_Ranking === true
   const [showAllRows, setShowAllRows] = useState(false); // When false, show only first 20 rows
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [selectedProviderFilter, setSelectedProviderFilter] = useState<Set<string>>(new Set());
+  const [providerSearchOpen, setProviderSearchOpen] = useState(false);
   const [filterBuckets, setFilterBuckets] = useState<{
     marketSize?: { range: { min: number; max: number } };
     revenuePerCompany?: { range: { min: number; max: number } };
@@ -101,6 +111,36 @@ export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData =
   useEffect(() => {
     setShowAllRows(false);
   }, [globalFilters, showOnlyIncludedInRanking, mapData]);
+
+  // Handle column sorting
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else if (sortDirection === "desc") {
+        setSortColumn(null);
+        setSortDirection(null);
+      } else {
+        setSortDirection("asc");
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    }
+    if (sortDirection === "asc") {
+      return <ArrowUp className="h-3 w-3 ml-1" />;
+    }
+    if (sortDirection === "desc") {
+      return <ArrowDown className="h-3 w-3 ml-1" />;
+    }
+    return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+  };
 
   // Filter opportunities based on global filters
   const filteredOpportunities = useMemo(() => {
@@ -227,7 +267,7 @@ export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData =
     const totalNationalMarketSize = Array.from(msaMarketSizeMap.values()).reduce((sum, size) => sum + size, 0);
 
     // Convert to array and calculate metrics
-    return Array.from(providerMap.values()).map(agg => {
+    let result = Array.from(providerMap.values()).map(agg => {
       const overallShareSize = totalNationalMarketSize > 0
         ? (agg.totalMarketShareDollars / totalNationalMarketSize) * 100
         : 0;
@@ -249,8 +289,66 @@ export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData =
         marketShareAtRisk,
         customerSatisfactionScore
       };
-    }).sort((a, b) => b.overallShareSize - a.overallShareSize); // Sort by overall share size descending
-  }, [filteredOpportunities]);
+    });
+
+    // Apply provider filter
+    if (selectedProviderFilter.size > 0) {
+      result = result.filter(agg => selectedProviderFilter.has(agg.provider));
+    }
+
+    // Apply sorting
+    if (sortColumn && sortDirection) {
+      result.sort((a, b) => {
+        let aValue: number | string;
+        let bValue: number | string;
+
+        switch (sortColumn) {
+          case "provider":
+            aValue = a.provider.toLowerCase();
+            bValue = b.provider.toLowerCase();
+            break;
+          case "overallShareSize":
+            aValue = a.overallShareSize;
+            bValue = b.overallShareSize;
+            break;
+          case "msasPenetrated":
+            aValue = a.msasPenetrated;
+            bValue = b.msasPenetrated;
+            break;
+          case "marketShareAtRisk":
+            aValue = a.marketShareAtRisk;
+            bValue = b.marketShareAtRisk;
+            break;
+          case "customerSatisfactionScore":
+            aValue = a.customerSatisfactionScore ?? -1;
+            bValue = b.customerSatisfactionScore ?? -1;
+            break;
+          default:
+            return 0;
+        }
+
+        if (typeof aValue === "string" && typeof bValue === "string") {
+          return sortDirection === "asc" 
+            ? aValue.localeCompare(bValue)
+            : bValue.localeCompare(aValue);
+        } else {
+          return sortDirection === "asc"
+            ? (aValue as number) - (bValue as number)
+            : (bValue as number) - (aValue as number);
+        }
+      });
+    } else {
+      // Default sort by overall share size descending
+      result.sort((a, b) => b.overallShareSize - a.overallShareSize);
+    }
+
+    return result;
+  }, [filteredOpportunities, sortColumn, sortDirection, selectedProviderFilter]);
+
+  // Get unique providers for filter (after providerAggregates is defined)
+  const uniqueProviders = useMemo(() => {
+    return Array.from(new Set(providerAggregates.map(agg => agg.provider))).sort();
+  }, [providerAggregates]);
 
   if (isLoading) {
     return (
@@ -308,11 +406,117 @@ export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData =
               <Table className="w-full table-auto">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[120px] px-2 text-xs">Provider</TableHead>
-                    <TableHead className="text-right min-w-[90px] px-2 text-xs">Overall Share Size (%)</TableHead>
-                    <TableHead className="text-right min-w-[90px] px-2 text-xs">MSAs Penetrated</TableHead>
-                    <TableHead className="text-right min-w-[120px] px-2 text-xs">Market Share at Risk (%)</TableHead>
-                    <TableHead className="text-right min-w-[130px] px-2 text-xs">Customer Satisfaction Score</TableHead>
+                    <TableHead className="min-w-[120px] px-2 text-xs">
+                      <div className="flex items-center gap-1">
+                        <Popover open={providerSearchOpen} onOpenChange={setProviderSearchOpen}>
+                          <PopoverTrigger asChild>
+                            <button
+                              className="flex items-center hover:text-foreground transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                            >
+                              Provider
+                              {selectedProviderFilter.size > 0 && (
+                                <Badge variant="secondary" className="ml-2 text-[10px]">
+                                  {selectedProviderFilter.size}
+                                </Badge>
+                              )}
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search providers..." />
+                              <CommandList>
+                                <CommandEmpty>No providers found.</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    onSelect={() => {
+                                      if (selectedProviderFilter.size === uniqueProviders.length) {
+                                        setSelectedProviderFilter(new Set());
+                                      } else {
+                                        setSelectedProviderFilter(new Set(uniqueProviders));
+                                      }
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={selectedProviderFilter.size === uniqueProviders.length && uniqueProviders.length > 0}
+                                      className="mr-2"
+                                    />
+                                    Select All
+                                  </CommandItem>
+                                  {uniqueProviders.map((provider) => (
+                                    <CommandItem
+                                      key={provider}
+                                      onSelect={() => {
+                                        const newFilter = new Set(selectedProviderFilter);
+                                        if (newFilter.has(provider)) {
+                                          newFilter.delete(provider);
+                                        } else {
+                                          newFilter.add(provider);
+                                        }
+                                        setSelectedProviderFilter(newFilter);
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={selectedProviderFilter.has(provider)}
+                                        className="mr-2"
+                                      />
+                                      {provider}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <button
+                          className="flex items-center hover:text-foreground transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSort("provider");
+                          }}
+                        >
+                          {getSortIcon("provider")}
+                        </button>
+                      </div>
+                    </TableHead>
+                    <TableHead className="text-right min-w-[90px] px-2 text-xs">
+                      <button
+                        className="flex items-center justify-end ml-auto hover:text-foreground transition-colors"
+                        onClick={() => handleSort("overallShareSize")}
+                      >
+                        Overall Share Size (%)
+                        {getSortIcon("overallShareSize")}
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right min-w-[90px] px-2 text-xs">
+                      <button
+                        className="flex items-center justify-end ml-auto hover:text-foreground transition-colors"
+                        onClick={() => handleSort("msasPenetrated")}
+                      >
+                        MSAs Penetrated
+                        {getSortIcon("msasPenetrated")}
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right min-w-[120px] px-2 text-xs">
+                      <button
+                        className="flex items-center justify-end ml-auto hover:text-foreground transition-colors"
+                        onClick={() => handleSort("marketShareAtRisk")}
+                      >
+                        Market Share at Risk (%)
+                        {getSortIcon("marketShareAtRisk")}
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right min-w-[130px] px-2 text-xs">
+                      <button
+                        className="flex items-center justify-end ml-auto hover:text-foreground transition-colors"
+                        onClick={() => handleSort("customerSatisfactionScore")}
+                      >
+                        Customer Satisfaction Score
+                        {getSortIcon("customerSatisfactionScore")}
+                      </button>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

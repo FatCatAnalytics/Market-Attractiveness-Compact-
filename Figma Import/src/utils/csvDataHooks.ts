@@ -196,6 +196,7 @@ export const useMSAEconomics = (msaName: string | null) => {
 // Direct API-like functions for components that need them
 export const fetchFilterBuckets = () => csvDataService.getFilterBuckets();
 export const fetchMSADetails = (msaName: string) => csvDataService.getMSADetails(msaName);
+export const fetchMSAAttractivenessWithDeposits = (msaName: string) => csvDataService.getMSAAttractivenessWithDeposits(msaName);
 export const fetchOpportunities = () => csvDataService.getOpportunities();
 export const fetchOpportunitiesRaw = () => csvDataService.getOpportunitiesRaw();
 export const fetchAllOpportunitiesRaw = () => csvDataService.getAllOpportunitiesRaw();

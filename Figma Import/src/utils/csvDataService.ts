@@ -425,6 +425,12 @@ class CSVDataService {
     };
   }
 
+  // Get attractiveness data for MSA including Deposits (for market size breakdown)
+  async getMSAAttractivenessWithDeposits(msaName: string) {
+    await this.loadData();
+    return this.attractivenessData.filter(row => row.MSA === msaName);
+  }
+
   // Get raw opportunities (only Included_In_Ranking)
   async getOpportunitiesRaw(): Promise<OpportunityData[]> {
     await this.loadData();
