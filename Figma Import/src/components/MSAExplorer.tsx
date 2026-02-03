@@ -109,7 +109,11 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
   const [econGrowthFilter, setEconGrowthFilter] = useState<Set<string>>(new Set());
   const [loanGrowthFilter, setLoanGrowthFilter] = useState<Set<string>>(new Set());
   const [riskFilter, setRiskFilter] = useState<Set<string>>(new Set());
+  const [riskMigrationFilter, setRiskMigrationFilter] = useState<Set<string>>(new Set());
+  const [relRiskMigFilter, setRelRiskMigFilter] = useState<Set<string>>(new Set());
+  const [premiumDiscFilter, setPremiumDiscFilter] = useState<Set<string>>(new Set());
   const [pricingFilter, setPricingFilter] = useState<Set<string>>(new Set());
+  const [intlCMFilter, setIntlCMFilter] = useState<Set<string>>(new Set());
 
   // Get the selected MSA name when exactly one MSA is selected
   const selectedMSAName = selectedForComparison.size === 1 
@@ -380,8 +384,20 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
     if (riskFilter.size > 0) {
       result = result.filter(msa => riskFilter.has(msa.Risk_Score));
     }
+    if (riskMigrationFilter.size > 0) {
+      result = result.filter(msa => riskMigrationFilter.has(msa.Risk_Migration_Score));
+    }
+    if (relRiskMigFilter.size > 0) {
+      result = result.filter(msa => relRiskMigFilter.has(msa.Relative_Risk_Migration_Score));
+    }
+    if (premiumDiscFilter.size > 0) {
+      result = result.filter(msa => premiumDiscFilter.has(msa.Premium_Discount_Score));
+    }
     if (pricingFilter.size > 0) {
       result = result.filter(msa => pricingFilter.has(msa.Pricing_Rationality));
+    }
+    if (intlCMFilter.size > 0) {
+      result = result.filter(msa => intlCMFilter.has(msa.International_CM_Score));
     }
     
     // Apply sorting
@@ -423,6 +439,26 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
             aValue = a.Risk_Score;
             bValue = b.Risk_Score;
             break;
+          case "riskMigration":
+            aValue = a.Risk_Migration_Score;
+            bValue = b.Risk_Migration_Score;
+            break;
+          case "relRiskMig":
+            aValue = a.Relative_Risk_Migration_Score;
+            bValue = b.Relative_Risk_Migration_Score;
+            break;
+          case "premiumDisc":
+            aValue = a.Premium_Discount_Score;
+            bValue = b.Premium_Discount_Score;
+            break;
+          case "pricing":
+            aValue = a.Pricing_Rationality;
+            bValue = b.Pricing_Rationality;
+            break;
+          case "intlCM":
+            aValue = a.International_CM_Score;
+            bValue = b.International_CM_Score;
+            break;
           default:
             return 0;
         }
@@ -443,7 +479,7 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
     }
     
     return showAllRows ? result : result.slice(0, 10);
-  }, [filteredData, showAllRows, sortColumn, sortDirection, attractivenessFilter, marketConcFilter, econGrowthFilter, loanGrowthFilter, riskFilter, pricingFilter]);
+  }, [filteredData, showAllRows, sortColumn, sortDirection, attractivenessFilter, marketConcFilter, econGrowthFilter, loanGrowthFilter, riskFilter, riskMigrationFilter, relRiskMigFilter, premiumDiscFilter, pricingFilter, intlCMFilter]);
   
   // Get unique values for filters
   const uniqueAttractiveness = useMemo(() => {
@@ -470,6 +506,22 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
     return Array.from(new Set(filteredData.map(m => m.Pricing_Rationality))).sort();
   }, [filteredData]);
   
+  const uniqueRiskMigration = useMemo(() => {
+    return Array.from(new Set(filteredData.map(m => m.Risk_Migration_Score))).sort();
+  }, [filteredData]);
+  
+  const uniqueRelRiskMig = useMemo(() => {
+    return Array.from(new Set(filteredData.map(m => m.Relative_Risk_Migration_Score))).sort();
+  }, [filteredData]);
+  
+  const uniquePremiumDisc = useMemo(() => {
+    return Array.from(new Set(filteredData.map(m => m.Premium_Discount_Score))).sort();
+  }, [filteredData]);
+  
+  const uniqueIntlCM = useMemo(() => {
+    return Array.from(new Set(filteredData.map(m => m.International_CM_Score))).sort();
+  }, [filteredData]);
+  
   // Clear all filters
   const clearAllFilters = () => {
     setAttractivenessFilter(new Set());
@@ -477,12 +529,21 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
     setEconGrowthFilter(new Set());
     setLoanGrowthFilter(new Set());
     setRiskFilter(new Set());
+    setRiskMigrationFilter(new Set());
+    setRelRiskMigFilter(new Set());
+    setPremiumDiscFilter(new Set());
     setPricingFilter(new Set());
+    setIntlCMFilter(new Set());
+    setSortColumn(null);
+    setSortDirection(null);
   };
   
   const hasActiveFilters = attractivenessFilter.size > 0 || marketConcFilter.size > 0 || 
     econGrowthFilter.size > 0 || loanGrowthFilter.size > 0 || 
-    riskFilter.size > 0 || pricingFilter.size > 0;
+    riskFilter.size > 0 || riskMigrationFilter.size > 0 ||
+    relRiskMigFilter.size > 0 || premiumDiscFilter.size > 0 ||
+    pricingFilter.size > 0 || intlCMFilter.size > 0 ||
+    (sortColumn !== null && sortDirection !== null);
 
   // Toggle row expansion
   const toggleRowExpansion = (msa: string) => {
@@ -1364,7 +1425,7 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
                     className="text-xs"
                   >
                     <X className="h-3 w-3 mr-2" />
-                    Clear Filters
+                    Clear All
                   </Button>
                 )}
                 <Button
@@ -1411,63 +1472,67 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
                       </button>
                     </th>
                     <th className="text-left py-2 px-2 text-xs font-medium">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
-                            Market Attractiveness
-                            {attractivenessFilter.size > 0 && (
-                              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">
-                                {attractivenessFilter.size}
-                              </Badge>
-                            )}
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-0" align="start">
-                          <Command>
-                            <CommandInput placeholder="Search..." />
-                            <CommandList>
-                              <CommandEmpty>No results found.</CommandEmpty>
-                              <CommandGroup>
-                                <CommandItem
-                                  onSelect={() => {
-                                    if (attractivenessFilter.size === uniqueAttractiveness.length) {
-                                      setAttractivenessFilter(new Set());
-                                    } else {
-                                      setAttractivenessFilter(new Set(uniqueAttractiveness));
-                                    }
-                                  }}
-                                >
-                                  <Checkbox
-                                    checked={attractivenessFilter.size === uniqueAttractiveness.length && uniqueAttractiveness.length > 0}
-                                    className="mr-2"
-                                  />
-                                  Select All
-                                </CommandItem>
-                                {uniqueAttractiveness.map((value) => (
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleSort("attractiveness")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Attractiveness
+                          {getSortIcon("attractiveness")}
+                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="p-0.5 hover:bg-muted rounded">
+                              <Filter className={`h-3 w-3 ${attractivenessFilter.size > 0 ? 'text-blue-600' : 'opacity-50'}`} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search..." />
+                              <CommandList>
+                                <CommandEmpty>No results found.</CommandEmpty>
+                                <CommandGroup>
                                   <CommandItem
-                                    key={value}
                                     onSelect={() => {
-                                      const newFilter = new Set(attractivenessFilter);
-                                      if (newFilter.has(value)) {
-                                        newFilter.delete(value);
+                                      if (attractivenessFilter.size === uniqueAttractiveness.length) {
+                                        setAttractivenessFilter(new Set());
                                       } else {
-                                        newFilter.add(value);
+                                        setAttractivenessFilter(new Set(uniqueAttractiveness));
                                       }
-                                      setAttractivenessFilter(newFilter);
                                     }}
                                   >
                                     <Checkbox
-                                      checked={attractivenessFilter.has(value)}
+                                      checked={attractivenessFilter.size === uniqueAttractiveness.length && uniqueAttractiveness.length > 0}
                                       className="mr-2"
                                     />
-                                    {value}
+                                    Select All
                                   </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                                  {uniqueAttractiveness.map((value) => (
+                                    <CommandItem
+                                      key={value}
+                                      onSelect={() => {
+                                        const newFilter = new Set(attractivenessFilter);
+                                        if (newFilter.has(value)) {
+                                          newFilter.delete(value);
+                                        } else {
+                                          newFilter.add(value);
+                                        }
+                                        setAttractivenessFilter(newFilter);
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={attractivenessFilter.has(value)}
+                                        className="mr-2"
+                                      />
+                                      {value}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </th>
                     <th className="text-left py-2 px-2 text-xs font-medium">
                       <button 
@@ -1479,304 +1544,572 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
                       </button>
                     </th>
                     <th className="text-left py-2 px-2 text-xs font-medium">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
-                            Market Conc.
-                            {marketConcFilter.size > 0 && (
-                              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">
-                                {marketConcFilter.size}
-                              </Badge>
-                            )}
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-0" align="start">
-                          <Command>
-                            <CommandInput placeholder="Search..." />
-                            <CommandList>
-                              <CommandEmpty>No results found.</CommandEmpty>
-                              <CommandGroup>
-                                <CommandItem
-                                  onSelect={() => {
-                                    if (marketConcFilter.size === uniqueMarketConc.length) {
-                                      setMarketConcFilter(new Set());
-                                    } else {
-                                      setMarketConcFilter(new Set(uniqueMarketConc));
-                                    }
-                                  }}
-                                >
-                                  <Checkbox
-                                    checked={marketConcFilter.size === uniqueMarketConc.length && uniqueMarketConc.length > 0}
-                                    className="mr-2"
-                                  />
-                                  Select All
-                                </CommandItem>
-                                {uniqueMarketConc.map((value) => (
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleSort("marketConc")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Market Conc.
+                          {getSortIcon("marketConc")}
+                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="p-0.5 hover:bg-muted rounded">
+                              <Filter className={`h-3 w-3 ${marketConcFilter.size > 0 ? 'text-blue-600' : 'opacity-50'}`} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search..." />
+                              <CommandList>
+                                <CommandEmpty>No results found.</CommandEmpty>
+                                <CommandGroup>
                                   <CommandItem
-                                    key={value}
                                     onSelect={() => {
-                                      const newFilter = new Set(marketConcFilter);
-                                      if (newFilter.has(value)) {
-                                        newFilter.delete(value);
+                                      if (marketConcFilter.size === uniqueMarketConc.length) {
+                                        setMarketConcFilter(new Set());
                                       } else {
-                                        newFilter.add(value);
+                                        setMarketConcFilter(new Set(uniqueMarketConc));
                                       }
-                                      setMarketConcFilter(newFilter);
                                     }}
                                   >
                                     <Checkbox
-                                      checked={marketConcFilter.has(value)}
+                                      checked={marketConcFilter.size === uniqueMarketConc.length && uniqueMarketConc.length > 0}
                                       className="mr-2"
                                     />
-                                    {value}
+                                    Select All
                                   </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                                  {uniqueMarketConc.map((value) => (
+                                    <CommandItem
+                                      key={value}
+                                      onSelect={() => {
+                                        const newFilter = new Set(marketConcFilter);
+                                        if (newFilter.has(value)) {
+                                          newFilter.delete(value);
+                                        } else {
+                                          newFilter.add(value);
+                                        }
+                                        setMarketConcFilter(newFilter);
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={marketConcFilter.has(value)}
+                                        className="mr-2"
+                                      />
+                                      {value}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </th>
                     <th className="text-left py-2 px-2 text-xs font-medium">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
-                            Econ. Growth
-                            {econGrowthFilter.size > 0 && (
-                              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">
-                                {econGrowthFilter.size}
-                              </Badge>
-                            )}
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-0" align="start">
-                          <Command>
-                            <CommandInput placeholder="Search..." />
-                            <CommandList>
-                              <CommandEmpty>No results found.</CommandEmpty>
-                              <CommandGroup>
-                                <CommandItem
-                                  onSelect={() => {
-                                    if (econGrowthFilter.size === uniqueEconGrowth.length) {
-                                      setEconGrowthFilter(new Set());
-                                    } else {
-                                      setEconGrowthFilter(new Set(uniqueEconGrowth));
-                                    }
-                                  }}
-                                >
-                                  <Checkbox
-                                    checked={econGrowthFilter.size === uniqueEconGrowth.length && uniqueEconGrowth.length > 0}
-                                    className="mr-2"
-                                  />
-                                  Select All
-                                </CommandItem>
-                                {uniqueEconGrowth.map((value) => (
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleSort("econGrowth")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Econ. Growth
+                          {getSortIcon("econGrowth")}
+                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="p-0.5 hover:bg-muted rounded">
+                              <Filter className={`h-3 w-3 ${econGrowthFilter.size > 0 ? 'text-blue-600' : 'opacity-50'}`} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search..." />
+                              <CommandList>
+                                <CommandEmpty>No results found.</CommandEmpty>
+                                <CommandGroup>
                                   <CommandItem
-                                    key={value}
                                     onSelect={() => {
-                                      const newFilter = new Set(econGrowthFilter);
-                                      if (newFilter.has(value)) {
-                                        newFilter.delete(value);
+                                      if (econGrowthFilter.size === uniqueEconGrowth.length) {
+                                        setEconGrowthFilter(new Set());
                                       } else {
-                                        newFilter.add(value);
+                                        setEconGrowthFilter(new Set(uniqueEconGrowth));
                                       }
-                                      setEconGrowthFilter(newFilter);
                                     }}
                                   >
                                     <Checkbox
-                                      checked={econGrowthFilter.has(value)}
+                                      checked={econGrowthFilter.size === uniqueEconGrowth.length && uniqueEconGrowth.length > 0}
                                       className="mr-2"
                                     />
-                                    {value}
+                                    Select All
                                   </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                                  {uniqueEconGrowth.map((value) => (
+                                    <CommandItem
+                                      key={value}
+                                      onSelect={() => {
+                                        const newFilter = new Set(econGrowthFilter);
+                                        if (newFilter.has(value)) {
+                                          newFilter.delete(value);
+                                        } else {
+                                          newFilter.add(value);
+                                        }
+                                        setEconGrowthFilter(newFilter);
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={econGrowthFilter.has(value)}
+                                        className="mr-2"
+                                      />
+                                      {value}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </th>
                     <th className="text-left py-2 px-2 text-xs font-medium">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
-                            Loan Growth
-                            {loanGrowthFilter.size > 0 && (
-                              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">
-                                {loanGrowthFilter.size}
-                              </Badge>
-                            )}
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-0" align="start">
-                          <Command>
-                            <CommandInput placeholder="Search..." />
-                            <CommandList>
-                              <CommandEmpty>No results found.</CommandEmpty>
-                              <CommandGroup>
-                                <CommandItem
-                                  onSelect={() => {
-                                    if (loanGrowthFilter.size === uniqueLoanGrowth.length) {
-                                      setLoanGrowthFilter(new Set());
-                                    } else {
-                                      setLoanGrowthFilter(new Set(uniqueLoanGrowth));
-                                    }
-                                  }}
-                                >
-                                  <Checkbox
-                                    checked={loanGrowthFilter.size === uniqueLoanGrowth.length && uniqueLoanGrowth.length > 0}
-                                    className="mr-2"
-                                  />
-                                  Select All
-                                </CommandItem>
-                                {uniqueLoanGrowth.map((value) => (
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleSort("loanGrowth")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Loan Growth
+                          {getSortIcon("loanGrowth")}
+                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="p-0.5 hover:bg-muted rounded">
+                              <Filter className={`h-3 w-3 ${loanGrowthFilter.size > 0 ? 'text-blue-600' : 'opacity-50'}`} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search..." />
+                              <CommandList>
+                                <CommandEmpty>No results found.</CommandEmpty>
+                                <CommandGroup>
                                   <CommandItem
-                                    key={value}
                                     onSelect={() => {
-                                      const newFilter = new Set(loanGrowthFilter);
-                                      if (newFilter.has(value)) {
-                                        newFilter.delete(value);
+                                      if (loanGrowthFilter.size === uniqueLoanGrowth.length) {
+                                        setLoanGrowthFilter(new Set());
                                       } else {
-                                        newFilter.add(value);
+                                        setLoanGrowthFilter(new Set(uniqueLoanGrowth));
                                       }
-                                      setLoanGrowthFilter(newFilter);
                                     }}
                                   >
                                     <Checkbox
-                                      checked={loanGrowthFilter.has(value)}
+                                      checked={loanGrowthFilter.size === uniqueLoanGrowth.length && uniqueLoanGrowth.length > 0}
                                       className="mr-2"
                                     />
-                                    {value}
+                                    Select All
                                   </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                                  {uniqueLoanGrowth.map((value) => (
+                                    <CommandItem
+                                      key={value}
+                                      onSelect={() => {
+                                        const newFilter = new Set(loanGrowthFilter);
+                                        if (newFilter.has(value)) {
+                                          newFilter.delete(value);
+                                        } else {
+                                          newFilter.add(value);
+                                        }
+                                        setLoanGrowthFilter(newFilter);
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={loanGrowthFilter.has(value)}
+                                        className="mr-2"
+                                      />
+                                      {value}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </th>
                     <th className="text-left py-2 px-2 text-xs font-medium">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
-                            Risk
-                            {riskFilter.size > 0 && (
-                              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">
-                                {riskFilter.size}
-                              </Badge>
-                            )}
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-0" align="start">
-                          <Command>
-                            <CommandInput placeholder="Search..." />
-                            <CommandList>
-                              <CommandEmpty>No results found.</CommandEmpty>
-                              <CommandGroup>
-                                <CommandItem
-                                  onSelect={() => {
-                                    if (riskFilter.size === uniqueRisk.length) {
-                                      setRiskFilter(new Set());
-                                    } else {
-                                      setRiskFilter(new Set(uniqueRisk));
-                                    }
-                                  }}
-                                >
-                                  <Checkbox
-                                    checked={riskFilter.size === uniqueRisk.length && uniqueRisk.length > 0}
-                                    className="mr-2"
-                                  />
-                                  Select All
-                                </CommandItem>
-                                {uniqueRisk.map((value) => (
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleSort("risk")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Risk
+                          {getSortIcon("risk")}
+                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="p-0.5 hover:bg-muted rounded">
+                              <Filter className={`h-3 w-3 ${riskFilter.size > 0 ? 'text-blue-600' : 'opacity-50'}`} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search..." />
+                              <CommandList>
+                                <CommandEmpty>No results found.</CommandEmpty>
+                                <CommandGroup>
                                   <CommandItem
-                                    key={value}
                                     onSelect={() => {
-                                      const newFilter = new Set(riskFilter);
-                                      if (newFilter.has(value)) {
-                                        newFilter.delete(value);
+                                      if (riskFilter.size === uniqueRisk.length) {
+                                        setRiskFilter(new Set());
                                       } else {
-                                        newFilter.add(value);
+                                        setRiskFilter(new Set(uniqueRisk));
                                       }
-                                      setRiskFilter(newFilter);
                                     }}
                                   >
                                     <Checkbox
-                                      checked={riskFilter.has(value)}
+                                      checked={riskFilter.size === uniqueRisk.length && uniqueRisk.length > 0}
                                       className="mr-2"
                                     />
-                                    {value}
+                                    Select All
                                   </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                                  {uniqueRisk.map((value) => (
+                                    <CommandItem
+                                      key={value}
+                                      onSelect={() => {
+                                        const newFilter = new Set(riskFilter);
+                                        if (newFilter.has(value)) {
+                                          newFilter.delete(value);
+                                        } else {
+                                          newFilter.add(value);
+                                        }
+                                        setRiskFilter(newFilter);
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={riskFilter.has(value)}
+                                        className="mr-2"
+                                      />
+                                      {value}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">Risk Migration</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">Rel. Risk Mig.</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">Premium/Disc.</th>
                     <th className="text-left py-2 px-2 text-xs font-medium">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
-                            Pricing
-                            {pricingFilter.size > 0 && (
-                              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">
-                                {pricingFilter.size}
-                              </Badge>
-                            )}
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-0" align="start">
-                          <Command>
-                            <CommandInput placeholder="Search..." />
-                            <CommandList>
-                              <CommandEmpty>No results found.</CommandEmpty>
-                              <CommandGroup>
-                                <CommandItem
-                                  onSelect={() => {
-                                    if (pricingFilter.size === uniquePricing.length) {
-                                      setPricingFilter(new Set());
-                                    } else {
-                                      setPricingFilter(new Set(uniquePricing));
-                                    }
-                                  }}
-                                >
-                                  <Checkbox
-                                    checked={pricingFilter.size === uniquePricing.length && uniquePricing.length > 0}
-                                    className="mr-2"
-                                  />
-                                  Select All
-                                </CommandItem>
-                                {uniquePricing.map((value) => (
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleSort("riskMigration")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Risk Mig.
+                          {getSortIcon("riskMigration")}
+                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="p-0.5 hover:bg-muted rounded">
+                              <Filter className={`h-3 w-3 ${riskMigrationFilter.size > 0 ? 'text-blue-600' : 'opacity-50'}`} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search..." />
+                              <CommandList>
+                                <CommandEmpty>No results found.</CommandEmpty>
+                                <CommandGroup>
                                   <CommandItem
-                                    key={value}
                                     onSelect={() => {
-                                      const newFilter = new Set(pricingFilter);
-                                      if (newFilter.has(value)) {
-                                        newFilter.delete(value);
+                                      if (riskMigrationFilter.size === uniqueRiskMigration.length) {
+                                        setRiskMigrationFilter(new Set());
                                       } else {
-                                        newFilter.add(value);
+                                        setRiskMigrationFilter(new Set(uniqueRiskMigration));
                                       }
-                                      setPricingFilter(newFilter);
                                     }}
                                   >
                                     <Checkbox
-                                      checked={pricingFilter.has(value)}
+                                      checked={riskMigrationFilter.size === uniqueRiskMigration.length && uniqueRiskMigration.length > 0}
                                       className="mr-2"
                                     />
-                                    {value}
+                                    Select All
                                   </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                                  {uniqueRiskMigration.map((value) => (
+                                    <CommandItem
+                                      key={value}
+                                      onSelect={() => {
+                                        const newFilter = new Set(riskMigrationFilter);
+                                        if (newFilter.has(value)) {
+                                          newFilter.delete(value);
+                                        } else {
+                                          newFilter.add(value);
+                                        }
+                                        setRiskMigrationFilter(newFilter);
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={riskMigrationFilter.has(value)}
+                                        className="mr-2"
+                                      />
+                                      {value}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">Intl. CM</th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleSort("relRiskMig")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Rel. Risk
+                          {getSortIcon("relRiskMig")}
+                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="p-0.5 hover:bg-muted rounded">
+                              <Filter className={`h-3 w-3 ${relRiskMigFilter.size > 0 ? 'text-blue-600' : 'opacity-50'}`} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search..." />
+                              <CommandList>
+                                <CommandEmpty>No results found.</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    onSelect={() => {
+                                      if (relRiskMigFilter.size === uniqueRelRiskMig.length) {
+                                        setRelRiskMigFilter(new Set());
+                                      } else {
+                                        setRelRiskMigFilter(new Set(uniqueRelRiskMig));
+                                      }
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={relRiskMigFilter.size === uniqueRelRiskMig.length && uniqueRelRiskMig.length > 0}
+                                      className="mr-2"
+                                    />
+                                    Select All
+                                  </CommandItem>
+                                  {uniqueRelRiskMig.map((value) => (
+                                    <CommandItem
+                                      key={value}
+                                      onSelect={() => {
+                                        const newFilter = new Set(relRiskMigFilter);
+                                        if (newFilter.has(value)) {
+                                          newFilter.delete(value);
+                                        } else {
+                                          newFilter.add(value);
+                                        }
+                                        setRelRiskMigFilter(newFilter);
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={relRiskMigFilter.has(value)}
+                                        className="mr-2"
+                                      />
+                                      {value}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleSort("premiumDisc")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Prem/Disc
+                          {getSortIcon("premiumDisc")}
+                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="p-0.5 hover:bg-muted rounded">
+                              <Filter className={`h-3 w-3 ${premiumDiscFilter.size > 0 ? 'text-blue-600' : 'opacity-50'}`} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search..." />
+                              <CommandList>
+                                <CommandEmpty>No results found.</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    onSelect={() => {
+                                      if (premiumDiscFilter.size === uniquePremiumDisc.length) {
+                                        setPremiumDiscFilter(new Set());
+                                      } else {
+                                        setPremiumDiscFilter(new Set(uniquePremiumDisc));
+                                      }
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={premiumDiscFilter.size === uniquePremiumDisc.length && uniquePremiumDisc.length > 0}
+                                      className="mr-2"
+                                    />
+                                    Select All
+                                  </CommandItem>
+                                  {uniquePremiumDisc.map((value) => (
+                                    <CommandItem
+                                      key={value}
+                                      onSelect={() => {
+                                        const newFilter = new Set(premiumDiscFilter);
+                                        if (newFilter.has(value)) {
+                                          newFilter.delete(value);
+                                        } else {
+                                          newFilter.add(value);
+                                        }
+                                        setPremiumDiscFilter(newFilter);
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={premiumDiscFilter.has(value)}
+                                        className="mr-2"
+                                      />
+                                      {value}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleSort("pricing")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Pricing
+                          {getSortIcon("pricing")}
+                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="p-0.5 hover:bg-muted rounded">
+                              <Filter className={`h-3 w-3 ${pricingFilter.size > 0 ? 'text-blue-600' : 'opacity-50'}`} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search..." />
+                              <CommandList>
+                                <CommandEmpty>No results found.</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    onSelect={() => {
+                                      if (pricingFilter.size === uniquePricing.length) {
+                                        setPricingFilter(new Set());
+                                      } else {
+                                        setPricingFilter(new Set(uniquePricing));
+                                      }
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={pricingFilter.size === uniquePricing.length && uniquePricing.length > 0}
+                                      className="mr-2"
+                                    />
+                                    Select All
+                                  </CommandItem>
+                                  {uniquePricing.map((value) => (
+                                    <CommandItem
+                                      key={value}
+                                      onSelect={() => {
+                                        const newFilter = new Set(pricingFilter);
+                                        if (newFilter.has(value)) {
+                                          newFilter.delete(value);
+                                        } else {
+                                          newFilter.add(value);
+                                        }
+                                        setPricingFilter(newFilter);
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={pricingFilter.has(value)}
+                                        className="mr-2"
+                                      />
+                                      {value}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleSort("intlCM")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          Intl. CM
+                          {getSortIcon("intlCM")}
+                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="p-0.5 hover:bg-muted rounded">
+                              <Filter className={`h-3 w-3 ${intlCMFilter.size > 0 ? 'text-blue-600' : 'opacity-50'}`} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search..." />
+                              <CommandList>
+                                <CommandEmpty>No results found.</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    onSelect={() => {
+                                      if (intlCMFilter.size === uniqueIntlCM.length) {
+                                        setIntlCMFilter(new Set());
+                                      } else {
+                                        setIntlCMFilter(new Set(uniqueIntlCM));
+                                      }
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={intlCMFilter.size === uniqueIntlCM.length && uniqueIntlCM.length > 0}
+                                      className="mr-2"
+                                    />
+                                    Select All
+                                  </CommandItem>
+                                  {uniqueIntlCM.map((value) => (
+                                    <CommandItem
+                                      key={value}
+                                      onSelect={() => {
+                                        const newFilter = new Set(intlCMFilter);
+                                        if (newFilter.has(value)) {
+                                          newFilter.delete(value);
+                                        } else {
+                                          newFilter.add(value);
+                                        }
+                                        setIntlCMFilter(newFilter);
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={intlCMFilter.has(value)}
+                                        className="mr-2"
+                                      />
+                                      {value}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
