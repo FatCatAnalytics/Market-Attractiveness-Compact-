@@ -5,11 +5,13 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Badge } from "./ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ScatterChart, Scatter, ZAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend } from "recharts";
-import { Search, ChevronDown, ChevronUp, Download, Eye, Filter, TrendingUp, MapPin, Info, BarChart3, Maximize2, Target, Loader2, DollarSign, Building2, Users } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, Download, Eye, Filter, TrendingUp, MapPin, Info, BarChart3, Maximize2, Target, Loader2, DollarSign, Building2, Users, ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Checkbox } from "./ui/checkbox";
 import { ScrollArea } from "./ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./ui/command";
 import { calculateDefensiveValue, calculateBucketModeScore, calculateAttractivenessScore, getCategoriesByQuartiles, DEFAULT_BUCKET_ASSIGNMENTS } from "../utils/scoreCalculation";
 import { applyGlobalFilters } from "../utils/applyGlobalFilters";
 import { fetchFilterBuckets, fetchMSADetails, fetchAllOpportunitiesRaw, fetchMSAAttractivenessWithDeposits } from "../utils/csvDataHooks";
@@ -96,6 +98,18 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
   }>({});
   const [msaEconomicsMap, setMsaEconomicsMap] = useState<Record<string, MSAEconomicsData>>({});
   const [msaAttractivenessData, setMsaAttractivenessData] = useState<Record<string, any[]>>({});
+  
+  // Sorting state for Top MSAs table
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc" | null>(null);
+  
+  // Filter state for Top MSAs table
+  const [attractivenessFilter, setAttractivenessFilter] = useState<Set<string>>(new Set());
+  const [marketConcFilter, setMarketConcFilter] = useState<Set<string>>(new Set());
+  const [econGrowthFilter, setEconGrowthFilter] = useState<Set<string>>(new Set());
+  const [loanGrowthFilter, setLoanGrowthFilter] = useState<Set<string>>(new Set());
+  const [riskFilter, setRiskFilter] = useState<Set<string>>(new Set());
+  const [pricingFilter, setPricingFilter] = useState<Set<string>>(new Set());
 
   // Get the selected MSA name when exactly one MSA is selected
   const selectedMSAName = selectedForComparison.size === 1 
@@ -317,12 +331,158 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
     return 0;
   };
 
-  // Get top MSAs by attractiveness score
+  // Handle column sorting
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      if (sortDirection === "desc") {
+        setSortDirection("asc");
+      } else if (sortDirection === "asc") {
+        setSortDirection(null);
+        setSortColumn(null);
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection("desc");
+    }
+  };
+
+  // Get sort icon for column
+  const getSortIcon = (column: string) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-3 w-3 opacity-30" />;
+    }
+    if (sortDirection === "asc") {
+      return <ArrowUp className="h-3 w-3" />;
+    }
+    if (sortDirection === "desc") {
+      return <ArrowDown className="h-3 w-3" />;
+    }
+    return <ArrowUpDown className="h-3 w-3 opacity-30" />;
+  };
+
+  // Get top MSAs by attractiveness score with sorting and filtering
   const topMSAs = useMemo(() => {
-    const sorted = [...filteredData]
-      .sort((a, b) => b.Attractiveness_Score - a.Attractiveness_Score);
-    return showAllRows ? sorted : sorted.slice(0, 10);
-  }, [filteredData, showAllRows]);
+    let result = [...filteredData];
+    
+    // Apply filters
+    if (attractivenessFilter.size > 0) {
+      result = result.filter(msa => attractivenessFilter.has(msa.Attractiveness_Category));
+    }
+    if (marketConcFilter.size > 0) {
+      result = result.filter(msa => marketConcFilter.has(msa.HHI_Score));
+    }
+    if (econGrowthFilter.size > 0) {
+      result = result.filter(msa => econGrowthFilter.has(msa.Economic_Growth_Score));
+    }
+    if (loanGrowthFilter.size > 0) {
+      result = result.filter(msa => loanGrowthFilter.has(msa.Loan_Growth_Score));
+    }
+    if (riskFilter.size > 0) {
+      result = result.filter(msa => riskFilter.has(msa.Risk_Score));
+    }
+    if (pricingFilter.size > 0) {
+      result = result.filter(msa => pricingFilter.has(msa.Pricing_Rationality));
+    }
+    
+    // Apply sorting
+    if (sortColumn && sortDirection) {
+      result.sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
+        
+        switch (sortColumn) {
+          case "score":
+            aValue = a.Attractiveness_Score;
+            bValue = b.Attractiveness_Score;
+            break;
+          case "msa":
+            aValue = a.MSA;
+            bValue = b.MSA;
+            break;
+          case "marketSize":
+            aValue = a["Market Size"];
+            bValue = b["Market Size"];
+            break;
+          case "attractiveness":
+            aValue = a.Attractiveness_Category;
+            bValue = b.Attractiveness_Category;
+            break;
+          case "marketConc":
+            aValue = a.HHI_Score;
+            bValue = b.HHI_Score;
+            break;
+          case "econGrowth":
+            aValue = a.Economic_Growth_Score;
+            bValue = b.Economic_Growth_Score;
+            break;
+          case "loanGrowth":
+            aValue = a.Loan_Growth_Score;
+            bValue = b.Loan_Growth_Score;
+            break;
+          case "risk":
+            aValue = a.Risk_Score;
+            bValue = b.Risk_Score;
+            break;
+          default:
+            return 0;
+        }
+        
+        if (typeof aValue === "string" && typeof bValue === "string") {
+          return sortDirection === "asc" 
+            ? aValue.localeCompare(bValue)
+            : bValue.localeCompare(aValue);
+        } else {
+          const numA = typeof aValue === "number" ? aValue : 0;
+          const numB = typeof bValue === "number" ? bValue : 0;
+          return sortDirection === "asc" ? numA - numB : numB - numA;
+        }
+      });
+    } else {
+      // Default sort by attractiveness score descending
+      result.sort((a, b) => b.Attractiveness_Score - a.Attractiveness_Score);
+    }
+    
+    return showAllRows ? result : result.slice(0, 10);
+  }, [filteredData, showAllRows, sortColumn, sortDirection, attractivenessFilter, marketConcFilter, econGrowthFilter, loanGrowthFilter, riskFilter, pricingFilter]);
+  
+  // Get unique values for filters
+  const uniqueAttractiveness = useMemo(() => {
+    return Array.from(new Set(filteredData.map(m => m.Attractiveness_Category))).sort();
+  }, [filteredData]);
+  
+  const uniqueMarketConc = useMemo(() => {
+    return Array.from(new Set(filteredData.map(m => m.HHI_Score))).sort();
+  }, [filteredData]);
+  
+  const uniqueEconGrowth = useMemo(() => {
+    return Array.from(new Set(filteredData.map(m => m.Economic_Growth_Score))).sort();
+  }, [filteredData]);
+  
+  const uniqueLoanGrowth = useMemo(() => {
+    return Array.from(new Set(filteredData.map(m => m.Loan_Growth_Score))).sort();
+  }, [filteredData]);
+  
+  const uniqueRisk = useMemo(() => {
+    return Array.from(new Set(filteredData.map(m => m.Risk_Score))).sort();
+  }, [filteredData]);
+  
+  const uniquePricing = useMemo(() => {
+    return Array.from(new Set(filteredData.map(m => m.Pricing_Rationality))).sort();
+  }, [filteredData]);
+  
+  // Clear all filters
+  const clearAllFilters = () => {
+    setAttractivenessFilter(new Set());
+    setMarketConcFilter(new Set());
+    setEconGrowthFilter(new Set());
+    setLoanGrowthFilter(new Set());
+    setRiskFilter(new Set());
+    setPricingFilter(new Set());
+  };
+  
+  const hasActiveFilters = attractivenessFilter.size > 0 || marketConcFilter.size > 0 || 
+    econGrowthFilter.size > 0 || loanGrowthFilter.size > 0 || 
+    riskFilter.size > 0 || pricingFilter.size > 0;
 
   // Toggle row expansion
   const toggleRowExpansion = (msa: string) => {
@@ -1187,10 +1347,26 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-sm font-semibold mb-1">
-                  {showAllRows ? `All ${filteredData.length} MSAs` : "Top 10 MSAs"} by Attractiveness Score
+                  {showAllRows ? `All ${topMSAs.length} MSAs` : "Top 10 MSAs"} by Attractiveness Score
                 </h3>
+                {hasActiveFilters && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {topMSAs.length} of {filteredData.length} MSAs shown
+                  </p>
+                )}
               </div>
               <div className="flex gap-2">
+                {hasActiveFilters && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearAllFilters}
+                    className="text-xs"
+                  >
+                    <X className="h-3 w-3 mr-2" />
+                    Clear Filters
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1216,18 +1392,390 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-2 px-2 text-xs font-medium">Rank</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">MSA</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">Score</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">Market Attractiveness</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">Market Size</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">Market Conc.</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">Econ. Growth</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">Loan Growth</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">Risk</th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <button 
+                        onClick={() => handleSort("msa")}
+                        className="flex items-center gap-1 hover:text-foreground transition-colors"
+                      >
+                        MSA
+                        {getSortIcon("msa")}
+                      </button>
+                    </th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <button 
+                        onClick={() => handleSort("score")}
+                        className="flex items-center gap-1 hover:text-foreground transition-colors"
+                      >
+                        Score
+                        {getSortIcon("score")}
+                      </button>
+                    </th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                            Market Attractiveness
+                            {attractivenessFilter.size > 0 && (
+                              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">
+                                {attractivenessFilter.size}
+                              </Badge>
+                            )}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search..." />
+                            <CommandList>
+                              <CommandEmpty>No results found.</CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  onSelect={() => {
+                                    if (attractivenessFilter.size === uniqueAttractiveness.length) {
+                                      setAttractivenessFilter(new Set());
+                                    } else {
+                                      setAttractivenessFilter(new Set(uniqueAttractiveness));
+                                    }
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={attractivenessFilter.size === uniqueAttractiveness.length && uniqueAttractiveness.length > 0}
+                                    className="mr-2"
+                                  />
+                                  Select All
+                                </CommandItem>
+                                {uniqueAttractiveness.map((value) => (
+                                  <CommandItem
+                                    key={value}
+                                    onSelect={() => {
+                                      const newFilter = new Set(attractivenessFilter);
+                                      if (newFilter.has(value)) {
+                                        newFilter.delete(value);
+                                      } else {
+                                        newFilter.add(value);
+                                      }
+                                      setAttractivenessFilter(newFilter);
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={attractivenessFilter.has(value)}
+                                      className="mr-2"
+                                    />
+                                    {value}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <button 
+                        onClick={() => handleSort("marketSize")}
+                        className="flex items-center gap-1 hover:text-foreground transition-colors"
+                      >
+                        Market Size
+                        {getSortIcon("marketSize")}
+                      </button>
+                    </th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                            Market Conc.
+                            {marketConcFilter.size > 0 && (
+                              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">
+                                {marketConcFilter.size}
+                              </Badge>
+                            )}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search..." />
+                            <CommandList>
+                              <CommandEmpty>No results found.</CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  onSelect={() => {
+                                    if (marketConcFilter.size === uniqueMarketConc.length) {
+                                      setMarketConcFilter(new Set());
+                                    } else {
+                                      setMarketConcFilter(new Set(uniqueMarketConc));
+                                    }
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={marketConcFilter.size === uniqueMarketConc.length && uniqueMarketConc.length > 0}
+                                    className="mr-2"
+                                  />
+                                  Select All
+                                </CommandItem>
+                                {uniqueMarketConc.map((value) => (
+                                  <CommandItem
+                                    key={value}
+                                    onSelect={() => {
+                                      const newFilter = new Set(marketConcFilter);
+                                      if (newFilter.has(value)) {
+                                        newFilter.delete(value);
+                                      } else {
+                                        newFilter.add(value);
+                                      }
+                                      setMarketConcFilter(newFilter);
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={marketConcFilter.has(value)}
+                                      className="mr-2"
+                                    />
+                                    {value}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                            Econ. Growth
+                            {econGrowthFilter.size > 0 && (
+                              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">
+                                {econGrowthFilter.size}
+                              </Badge>
+                            )}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search..." />
+                            <CommandList>
+                              <CommandEmpty>No results found.</CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  onSelect={() => {
+                                    if (econGrowthFilter.size === uniqueEconGrowth.length) {
+                                      setEconGrowthFilter(new Set());
+                                    } else {
+                                      setEconGrowthFilter(new Set(uniqueEconGrowth));
+                                    }
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={econGrowthFilter.size === uniqueEconGrowth.length && uniqueEconGrowth.length > 0}
+                                    className="mr-2"
+                                  />
+                                  Select All
+                                </CommandItem>
+                                {uniqueEconGrowth.map((value) => (
+                                  <CommandItem
+                                    key={value}
+                                    onSelect={() => {
+                                      const newFilter = new Set(econGrowthFilter);
+                                      if (newFilter.has(value)) {
+                                        newFilter.delete(value);
+                                      } else {
+                                        newFilter.add(value);
+                                      }
+                                      setEconGrowthFilter(newFilter);
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={econGrowthFilter.has(value)}
+                                      className="mr-2"
+                                    />
+                                    {value}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                            Loan Growth
+                            {loanGrowthFilter.size > 0 && (
+                              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">
+                                {loanGrowthFilter.size}
+                              </Badge>
+                            )}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search..." />
+                            <CommandList>
+                              <CommandEmpty>No results found.</CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  onSelect={() => {
+                                    if (loanGrowthFilter.size === uniqueLoanGrowth.length) {
+                                      setLoanGrowthFilter(new Set());
+                                    } else {
+                                      setLoanGrowthFilter(new Set(uniqueLoanGrowth));
+                                    }
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={loanGrowthFilter.size === uniqueLoanGrowth.length && uniqueLoanGrowth.length > 0}
+                                    className="mr-2"
+                                  />
+                                  Select All
+                                </CommandItem>
+                                {uniqueLoanGrowth.map((value) => (
+                                  <CommandItem
+                                    key={value}
+                                    onSelect={() => {
+                                      const newFilter = new Set(loanGrowthFilter);
+                                      if (newFilter.has(value)) {
+                                        newFilter.delete(value);
+                                      } else {
+                                        newFilter.add(value);
+                                      }
+                                      setLoanGrowthFilter(newFilter);
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={loanGrowthFilter.has(value)}
+                                      className="mr-2"
+                                    />
+                                    {value}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                            Risk
+                            {riskFilter.size > 0 && (
+                              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">
+                                {riskFilter.size}
+                              </Badge>
+                            )}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search..." />
+                            <CommandList>
+                              <CommandEmpty>No results found.</CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  onSelect={() => {
+                                    if (riskFilter.size === uniqueRisk.length) {
+                                      setRiskFilter(new Set());
+                                    } else {
+                                      setRiskFilter(new Set(uniqueRisk));
+                                    }
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={riskFilter.size === uniqueRisk.length && uniqueRisk.length > 0}
+                                    className="mr-2"
+                                  />
+                                  Select All
+                                </CommandItem>
+                                {uniqueRisk.map((value) => (
+                                  <CommandItem
+                                    key={value}
+                                    onSelect={() => {
+                                      const newFilter = new Set(riskFilter);
+                                      if (newFilter.has(value)) {
+                                        newFilter.delete(value);
+                                      } else {
+                                        newFilter.add(value);
+                                      }
+                                      setRiskFilter(newFilter);
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={riskFilter.has(value)}
+                                      className="mr-2"
+                                    />
+                                    {value}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </th>
                     <th className="text-left py-2 px-2 text-xs font-medium">Risk Migration</th>
                     <th className="text-left py-2 px-2 text-xs font-medium">Rel. Risk Mig.</th>
                     <th className="text-left py-2 px-2 text-xs font-medium">Premium/Disc.</th>
-                    <th className="text-left py-2 px-2 text-xs font-medium">Pricing</th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                            Pricing
+                            {pricingFilter.size > 0 && (
+                              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">
+                                {pricingFilter.size}
+                              </Badge>
+                            )}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search..." />
+                            <CommandList>
+                              <CommandEmpty>No results found.</CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  onSelect={() => {
+                                    if (pricingFilter.size === uniquePricing.length) {
+                                      setPricingFilter(new Set());
+                                    } else {
+                                      setPricingFilter(new Set(uniquePricing));
+                                    }
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={pricingFilter.size === uniquePricing.length && uniquePricing.length > 0}
+                                    className="mr-2"
+                                  />
+                                  Select All
+                                </CommandItem>
+                                {uniquePricing.map((value) => (
+                                  <CommandItem
+                                    key={value}
+                                    onSelect={() => {
+                                      const newFilter = new Set(pricingFilter);
+                                      if (newFilter.has(value)) {
+                                        newFilter.delete(value);
+                                      } else {
+                                        newFilter.add(value);
+                                      }
+                                      setPricingFilter(newFilter);
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={pricingFilter.has(value)}
+                                      className="mr-2"
+                                    />
+                                    {value}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </th>
                     <th className="text-left py-2 px-2 text-xs font-medium">Intl. CM</th>
                   </tr>
                 </thead>
