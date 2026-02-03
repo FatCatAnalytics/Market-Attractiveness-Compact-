@@ -517,12 +517,12 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
       <Card className="p-4">
         <div className="flex items-center gap-2 mb-4">
           <Search className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium text-sm">Select Franchise or MSA to analyze</span>
+          <span className="font-medium text-sm">Select Bank or MSA to analyze</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Franchise Filter */}
+          {/* Bank Filter */}
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Franchise</Label>
+            <Label className="text-xs text-muted-foreground">Bank</Label>
             <Popover open={providerComboboxOpen} onOpenChange={setProviderComboboxOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -532,18 +532,18 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                   className="w-full justify-between"
                 >
                   {selectedProviders.size === 0
-                    ? "Select franchises..."
+                    ? "Select banks..."
                     : selectedProviders.size === 1
                       ? Array.from(selectedProviders)[0]
-                      : `${selectedProviders.size} franchises selected`}
+                      : `${selectedProviders.size} banks selected`}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[300px] p-0" align="start">
                 <Command>
-                  <CommandInput placeholder="Search franchises..." />
+                  <CommandInput placeholder="Search banks..." />
                   <CommandList>
-                    <CommandEmpty>No franchise found.</CommandEmpty>
+                    <CommandEmpty>No bank found.</CommandEmpty>
                     <CommandGroup>
                       {allProviders.map((provider) => (
                         <CommandItem
@@ -647,7 +647,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
         </div>
       </Card>
 
-      {/* Franchise Comparison Tables */}
+      {/* Bank Comparison Tables */}
       {(selectedProviders.size > 0 || selectedMSA !== "all") && (() => {
         // Determine which providers to show:
         // - If specific franchises are selected, show those
@@ -999,6 +999,23 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
             };
           }).sort((a, b) => b.franchiseShareDollars - a.franchiseShareDollars);
           
+          // Get unique MSAs with their market sizes and market share percentages for hover popup
+          const msaMap = new Map<string, { marketSize: number; marketSharePct: number }>();
+          providerOpps.forEach(opp => {
+            const msa = opp.MSA;
+            const marketSize = parseFloat(String(opp["Market Size"] || 0));
+            const marketShare = parseFloat(String(opp["Market Share"] || 0));
+            const marketSharePct = marketShare * 100;
+            // Use the first values we encounter for each MSA (they should be the same)
+            if (!msaMap.has(msa)) {
+              msaMap.set(msa, { marketSize, marketSharePct });
+            }
+          });
+          
+          const msaList = Array.from(msaMap.entries())
+            .map(([msa, data]) => ({ msa, marketSize: data.marketSize, marketSharePct: data.marketSharePct }))
+            .sort((a, b) => b.marketSize - a.marketSize);
+          
           return {
             provider,
             msaCount,
@@ -1011,7 +1028,8 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
             customerSatisfactionScore,
             regionCount,
             regionalData,
-            msaBreakdown
+            msaBreakdown,
+            msaList // Add MSA list with market sizes for hover popup
           };
         });
         
@@ -1092,7 +1110,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="mb-0">Franchise Comparison Summary</h3>
+                      <h3 className="mb-0">Bank Comparison Summary</h3>
                       {((preselectedMSAs && preselectedMSAs.size > 0) || selectedMSA !== "all") && selectedProviders.size === 0 && (
                         <Badge variant="secondary" className="text-xs">
                           {preselectedMSAs && preselectedMSAs.size > 1 
@@ -1337,7 +1355,61 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                       <td className="py-3 px-4 font-medium bg-muted/30 sticky left-0 z-10 text-sm whitespace-nowrap">MSAs Active</td>
                       {providerAggregates.map((agg, idx) => (
                         <td key={idx} className="py-3 px-2 text-center border-l">
-                          {agg.msaCount}
+                          <HoverCard openDelay={200} closeDelay={100}>
+                            <HoverCardTrigger asChild>
+                              <button className="inline-flex items-center gap-1 px-1 py-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors cursor-pointer">
+                                <span className="font-medium">{agg.msaCount}</span>
+                                <span className="text-xs text-muted-foreground">MSAs</span>
+                              </button>
+                            </HoverCardTrigger>
+                            <HoverCardContent className="w-80 p-0" align="center" side="bottom">
+                              <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden">
+                                {/* Header */}
+                                <div className="p-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xs">
+                                      {agg.provider.charAt(0)}
+                                    </div>
+                                    <div>
+                                      <h4 className="font-semibold text-sm truncate max-w-[200px]">{agg.provider}</h4>
+                                      <p className="text-[10px] text-muted-foreground">{agg.msaCount} MSAs</p>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* MSA List */}
+                                <div className="p-2 space-y-1 max-h-[300px] overflow-y-auto">
+                                  {agg.msaList.map((msaData, mIdx) => {
+                                    const cleanMsaName = msaData.msa.replace(/^[A-Z]{2}(-[A-Z]{2})*-/, '');
+                                    const maxMarketShare = Math.max(...agg.msaList.map(m => m.marketSharePct), 1);
+                                    return (
+                                      <div key={mIdx} className="bg-white dark:bg-slate-800/50 rounded-md p-2 border border-slate-100 dark:border-slate-700">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <span className="text-[9px] text-slate-400 w-3">{mIdx + 1}.</span>
+                                            <span className="text-[10px] text-slate-600 dark:text-slate-400 truncate" title={msaData.msa}>
+                                              {cleanMsaName}
+                                            </span>
+                                          </div>
+                                          <span className="text-[10px] font-medium ml-2 whitespace-nowrap">
+                                            {msaData.marketSharePct.toFixed(1)}%
+                                          </span>
+                                        </div>
+                                        <div className="h-1 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden mt-1.5">
+                                          <div 
+                                            className="h-full rounded-full bg-blue-500"
+                                            style={{ 
+                                              width: `${(msaData.marketSharePct / maxMarketShare) * 100}%`
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </HoverCardContent>
+                          </HoverCard>
                         </td>
                       ))}
                     </tr>
@@ -1560,7 +1632,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                           ) : (
                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
                           )}
-                          <span>Total Franchise Share ($)</span>
+                          <span>National Market Share ($)</span>
                         </div>
                       </td>
                       {providerAggregates.map((agg, idx) => (
@@ -1716,7 +1788,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                     <tr className="border-b-2 border-muted">
                       <td colSpan={providerAggregates.length + 1} className="py-4 px-4 bg-muted/50">
                         <div className="flex flex-col gap-1">
-                          <span className="font-medium text-sm">Franchise Quality by Market Attractiveness</span>
+                          <span className="font-medium text-sm">Bank Quality by Market Attractiveness</span>
                           <span className="text-xs text-muted-foreground">
                             Good = Highly Attractive + Attractive MSAs · Neutral = Neutral MSAs · Challenging = Challenging MSAs
                           </span>
@@ -1765,9 +1837,9 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
         <Card className="p-6 bg-gradient-to-br from-card to-card/50 border-2">
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Target className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="mb-2">No Franchises or MSA Selected</h3>
+            <h3 className="mb-2">No Banks or MSA Selected</h3>
             <p className="text-sm text-muted-foreground max-w-md">
-              Select one or more franchises from the Franchise filter, or select an MSA to view detailed comparison and market share distribution for all franchises in that market.
+              Select one or more banks from the Bank filter, or select an MSA to view detailed comparison and market share distribution for all banks in that market.
             </p>
           </div>
         </Card>

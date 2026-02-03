@@ -265,17 +265,20 @@ export function MSAEconomicProfileCompact({ economics }: MSAEconomicProfileCompa
     <div className="bg-slate-50 rounded-lg p-2 border border-slate-200">
       <div className="text-[10px] font-medium text-slate-500 mb-1.5 flex items-center gap-1">
         <Building2 className="h-3 w-3" />
-        Economic Indicators
+        Economic Indicators <span className="text-[9px] font-normal text-slate-400">(% changes are YoY)</span>
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         {/* GDP */}
         <div className="flex items-center justify-between bg-white rounded px-1.5 py-1 border border-slate-100">
           <span className="text-[10px] text-slate-500">GDP</span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-baseline gap-1">
             <span className="text-[10px] font-semibold">{formatNumber(economics.gdp * 1000)}</span>
             <span 
-              className="text-[9px]"
-              style={{ color: economics.gdpGrowth > 0 ? '#16a34a' : economics.gdpGrowth < 0 ? '#dc2626' : '#9ca3af' }}
+              className={`text-[10px] font-medium ${
+                economics.gdpGrowth > 0 ? 'text-emerald-600' : 
+                economics.gdpGrowth < 0 ? 'text-red-600' : 
+                'text-slate-400'
+              }`}
             >
               {economics.gdpGrowth > 0 ? '↑' : economics.gdpGrowth < 0 ? '↓' : '−'}{Math.abs(economics.gdpGrowth).toFixed(1)}%
             </span>
@@ -284,12 +287,15 @@ export function MSAEconomicProfileCompact({ economics }: MSAEconomicProfileCompa
         
         {/* Unemployment - green for decrease (good), red for increase (bad) */}
         <div className="flex items-center justify-between bg-white rounded px-1.5 py-1 border border-slate-100">
-          <span className="text-[10px] text-slate-500">Unemp</span>
-          <div className="flex items-center gap-1">
+          <span className="text-[10px] text-slate-500">Unemployment</span>
+          <div className="flex items-baseline gap-1">
             <span className="text-[10px] font-semibold">{economics.unemployment2024.toFixed(1)}%</span>
             <span 
-              className="text-[9px]"
-              style={{ color: economics.unemploymentChange < 0 ? '#16a34a' : economics.unemploymentChange > 0 ? '#dc2626' : '#9ca3af' }}
+              className={`text-[10px] font-medium ${
+                economics.unemploymentChange < 0 ? 'text-emerald-600' : 
+                economics.unemploymentChange > 0 ? 'text-red-600' : 
+                'text-slate-400'
+              }`}
             >
               {economics.unemploymentChange > 0 ? '↑' : economics.unemploymentChange < 0 ? '↓' : '−'}{Math.abs(economics.unemploymentChange).toFixed(1)}%
             </span>
@@ -299,11 +305,14 @@ export function MSAEconomicProfileCompact({ economics }: MSAEconomicProfileCompa
         {/* Income */}
         <div className="flex items-center justify-between bg-white rounded px-1.5 py-1 border border-slate-100">
           <span className="text-[10px] text-slate-500">Income</span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-baseline gap-1">
             <span className="text-[10px] font-semibold">${(economics.perCapitaIncome / 1000).toFixed(0)}K</span>
             <span 
-              className="text-[9px]"
-              style={{ color: economics.incomeGrowth > 0 ? '#16a34a' : economics.incomeGrowth < 0 ? '#dc2626' : '#9ca3af' }}
+              className={`text-[10px] font-medium ${
+                economics.incomeGrowth > 0 ? 'text-emerald-600' : 
+                economics.incomeGrowth < 0 ? 'text-red-600' : 
+                'text-slate-400'
+              }`}
             >
               {economics.incomeGrowth > 0 ? '↑' : economics.incomeGrowth < 0 ? '↓' : '−'}{Math.abs(economics.incomeGrowth).toFixed(1)}%
             </span>
@@ -312,12 +321,15 @@ export function MSAEconomicProfileCompact({ economics }: MSAEconomicProfileCompa
         
         {/* Population */}
         <div className="flex items-center justify-between bg-white rounded px-1.5 py-1 border border-slate-100">
-          <span className="text-[10px] text-slate-500">Pop</span>
-          <div className="flex items-center gap-1">
+          <span className="text-[10px] text-slate-500">Population</span>
+          <div className="flex items-baseline gap-1">
             <span className="text-[10px] font-semibold">{formatPopulation(economics.population2024)}</span>
             <span 
-              className="text-[9px]"
-              style={{ color: economics.populationGrowth > 0 ? '#16a34a' : economics.populationGrowth < 0 ? '#dc2626' : '#9ca3af' }}
+              className={`text-[10px] font-medium ${
+                economics.populationGrowth > 0 ? 'text-emerald-600' : 
+                economics.populationGrowth < 0 ? 'text-red-600' : 
+                'text-slate-400'
+              }`}
             >
               {economics.populationGrowth > 0 ? '↑' : economics.populationGrowth < 0 ? '↓' : '−'}{Math.abs(economics.populationGrowth).toFixed(1)}%
             </span>

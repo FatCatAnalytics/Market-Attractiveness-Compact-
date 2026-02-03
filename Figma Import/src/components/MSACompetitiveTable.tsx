@@ -317,7 +317,7 @@ export function MSACompetitiveTable({ opportunities, limit = 50, hideMarketSize 
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
           <Input
-            placeholder="Search providers..."
+            placeholder="Search banks..."
             value={providerSearch}
             onChange={(e) => setProviderSearch(e.target.value)}
             className="h-8 text-xs pl-7"
@@ -337,7 +337,7 @@ export function MSACompetitiveTable({ opportunities, limit = 50, hideMarketSize 
         )}
         
         <div className="text-xs text-muted-foreground ml-auto">
-          {processedData.length} of {opportunities.length} providers
+          {processedData.length} of {opportunities.length} banks
         </div>
       </div>
 
@@ -352,7 +352,7 @@ export function MSACompetitiveTable({ opportunities, limit = 50, hideMarketSize 
                   onClick={() => handleSort('provider')}
                   className="flex items-center gap-1 hover:text-foreground"
                 >
-                  Provider
+                  Bank
                   <SortIcon field="provider" />
                 </button>
               </TableHead>
