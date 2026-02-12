@@ -858,7 +858,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
           { metric: 'Market\nShare', value: calculatePercentileScore(averageMetrics.marketShare, benchmarks.marketShare.min, benchmarks.marketShare.max), fullMark: 100 },
           { metric: 'Regional\nBreadth', value: calculatePercentileScore(averageMetrics.regionCount, benchmarks.regionCount.min, benchmarks.regionCount.max), fullMark: 100 },
           { metric: 'Satisfaction', value: calculatePercentileScore(averageMetrics.satisfaction, benchmarks.satisfaction.min || 0, benchmarks.satisfaction.max || 5), fullMark: 100 },
-          { metric: 'Revenue at\nRisk', value: calculatePercentileScore(averageMetrics.revenueAtRiskScore, benchmarks.revenueAtRisk.min, benchmarks.revenueAtRisk.max), fullMark: 100 },
+          { metric: 'Market Share\nRisk', value: calculatePercentileScore(averageMetrics.revenueAtRiskScore, benchmarks.revenueAtRisk.min, benchmarks.revenueAtRisk.max), fullMark: 100 },
           { metric: 'Market\nQuality', value: calculatePercentileScore(averageMetrics.quality, benchmarks.quality.min, benchmarks.quality.max), fullMark: 100 },
         ];
         
@@ -1151,7 +1151,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                     <div><strong>Market Share</strong> = Market share percentage</div>
                     <div><strong>Regional Breadth</strong> = Number of regions served</div>
                     <div><strong>Satisfaction</strong> = Customer satisfaction score</div>
-                    <div><strong>Revenue at Risk</strong> = Portfolio stability (lower risk = higher score)</div>
+                    <div><strong>Market Share Risk</strong> = Portfolio stability (lower risk = higher score)</div>
                     <div><strong>Market Quality</strong> = % revenue in attractive markets</div>
                   </div>
                 </div>
@@ -1248,7 +1248,7 @@ export function TargetOpportunities({ attractivenessData, onAnalyzeSelected, glo
                           { metric: 'Market\nShare', value: marketShareScore, fullMark: 100 },
                           { metric: 'Regional\nBreadth', value: coverageScore, fullMark: 100 },
                           { metric: 'Satisfaction', value: satisfactionScore, fullMark: 100 },
-                          { metric: 'Revenue at\nRisk', value: revenueAtRiskScore, fullMark: 100 },
+                          { metric: 'Market Share\nRisk', value: revenueAtRiskScore, fullMark: 100 },
                           { metric: 'Market\nQuality', value: qualityScore, fullMark: 100 },
                         ];
                         

@@ -116,8 +116,8 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
   const [intlCMFilter, setIntlCMFilter] = useState<Set<string>>(new Set());
 
   // Get the selected MSA name when exactly one MSA is selected
-  const selectedMSAName = selectedForComparison.size === 1 
-    ? Array.from(selectedForComparison)[0] 
+  const selectedMSAName: string | null = selectedForComparison.size === 1 
+    ? [...selectedForComparison][0] 
     : null;
   
   // Fetch attractiveness data (including Deposits) for selected MSAs
@@ -128,13 +128,13 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
         return;
       }
       
-      const selectedMSAs = Array.from(selectedForComparison);
+      const selectedMSAs: string[] = [...selectedForComparison];
       const newAttractivenessData: Record<string, any[]> = {};
       
       try {
         // Fetch attractiveness data for all selected MSAs
         await Promise.all(
-          selectedMSAs.map(async (msaName) => {
+          selectedMSAs.map(async (msaName: string) => {
             try {
               const attractivenessData = await fetchMSAAttractivenessWithDeposits(msaName);
               newAttractivenessData[msaName] = attractivenessData;
@@ -162,11 +162,11 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
   // Fetch economics data for all selected MSAs (for comparison view)
   useEffect(() => {
     const fetchAllEconomics = async () => {
-      const msaNames = Array.from(selectedForComparison);
+      const msaNames: string[] = [...selectedForComparison];
       const newEconomicsMap: Record<string, MSAEconomicsData> = {};
       
       await Promise.all(
-        msaNames.map(async (msaName) => {
+        msaNames.map(async (msaName: string) => {
           const economics = await fetchMSAEconomics(msaName);
           if (economics) {
             newEconomicsMap[msaName] = economics;
@@ -364,6 +364,23 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
     return <ArrowUpDown className="h-3 w-3 opacity-30" />;
   };
 
+  // Order constants for filters and sorting: best (top) to worst (bottom)
+  const ATTRACTIVENESS_ORDER = ["Highly Attractive", "Attractive", "Neutral", "Challenging"];
+  const MARKET_CONC_ORDER = ["Low", "Medium", "High"];
+  const REL_RISK_MIG_ORDER = ["Below National Avg", "At National Avg", "Above National Avg"];
+  const HIGH_LOW_ORDER = ["High", "Medium", "Low"];
+  const RISK_ORDER = ["Low", "Medium", "High"];
+  const PREMIUM_DISC_ORDER = ["Premium", "Par", "Discount"];
+  const PRICING_ORDER = ["Rational", "Overpriced (Opportunity)", "Underpriced (Risk)"];
+
+  const compareByOrder = (a: string, b: string, order: string[], asc: boolean): number => {
+    const idxA = order.indexOf(a);
+    const idxB = order.indexOf(b);
+    const aIdx = idxA === -1 ? order.length : idxA;
+    const bIdx = idxB === -1 ? order.length : idxB;
+    return asc ? aIdx - bIdx : bIdx - aIdx;
+  };
+
   // Get top MSAs by attractiveness score with sorting and filtering
   const topMSAs = useMemo(() => {
     let result = [...filteredData];
@@ -464,9 +481,28 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
         }
         
         if (typeof aValue === "string" && typeof bValue === "string") {
-          return sortDirection === "asc" 
-            ? aValue.localeCompare(bValue)
-            : bValue.localeCompare(aValue);
+          const asc = sortDirection === "asc";
+          switch (sortColumn) {
+            case "attractiveness":
+              return compareByOrder(aValue, bValue, ATTRACTIVENESS_ORDER, asc);
+            case "marketConc":
+              return compareByOrder(aValue, bValue, MARKET_CONC_ORDER, asc);
+            case "econGrowth":
+            case "loanGrowth":
+            case "intlCM":
+              return compareByOrder(aValue, bValue, HIGH_LOW_ORDER, asc);
+            case "risk":
+            case "riskMigration":
+              return compareByOrder(aValue, bValue, RISK_ORDER, asc);
+            case "relRiskMig":
+              return compareByOrder(aValue, bValue, REL_RISK_MIG_ORDER, asc);
+            case "premiumDisc":
+              return compareByOrder(aValue, bValue, PREMIUM_DISC_ORDER, asc);
+            case "pricing":
+              return compareByOrder(aValue, bValue, PRICING_ORDER, asc);
+            default:
+              return asc ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+          }
         } else {
           const numA = typeof aValue === "number" ? aValue : 0;
           const numB = typeof bValue === "number" ? bValue : 0;
@@ -481,45 +517,65 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
     return showAllRows ? result : result.slice(0, 10);
   }, [filteredData, showAllRows, sortColumn, sortDirection, attractivenessFilter, marketConcFilter, econGrowthFilter, loanGrowthFilter, riskFilter, riskMigrationFilter, relRiskMigFilter, premiumDiscFilter, pricingFilter, intlCMFilter]);
   
-  // Get unique values for filters
+  const sortByOrder = (values: string[], order: string[]) => {
+    return [...values].sort((a, b) => {
+      const idxA = order.indexOf(a);
+      const idxB = order.indexOf(b);
+      if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    });
+  };
+  
   const uniqueAttractiveness = useMemo(() => {
-    return Array.from(new Set(filteredData.map(m => m.Attractiveness_Category))).sort();
+    const values = Array.from(new Set(filteredData.map(m => m.Attractiveness_Category).filter(Boolean))) as string[];
+    return sortByOrder(values, ATTRACTIVENESS_ORDER);
   }, [filteredData]);
   
   const uniqueMarketConc = useMemo(() => {
-    return Array.from(new Set(filteredData.map(m => m.HHI_Score))).sort();
+    const values = Array.from(new Set(filteredData.map(m => m.HHI_Score).filter(Boolean))) as string[];
+    return sortByOrder(values, MARKET_CONC_ORDER);
   }, [filteredData]);
   
   const uniqueEconGrowth = useMemo(() => {
-    return Array.from(new Set(filteredData.map(m => m.Economic_Growth_Score))).sort();
+    const values = Array.from(new Set(filteredData.map(m => m.Economic_Growth_Score).filter(Boolean))) as string[];
+    return sortByOrder(values, HIGH_LOW_ORDER);
   }, [filteredData]);
   
   const uniqueLoanGrowth = useMemo(() => {
-    return Array.from(new Set(filteredData.map(m => m.Loan_Growth_Score))).sort();
+    const values = Array.from(new Set(filteredData.map(m => m.Loan_Growth_Score).filter(Boolean))) as string[];
+    return sortByOrder(values, HIGH_LOW_ORDER);
   }, [filteredData]);
   
   const uniqueRisk = useMemo(() => {
-    return Array.from(new Set(filteredData.map(m => m.Risk_Score))).sort();
+    const values = Array.from(new Set(filteredData.map(m => m.Risk_Score).filter(Boolean))) as string[];
+    return sortByOrder(values, RISK_ORDER);
   }, [filteredData]);
   
   const uniquePricing = useMemo(() => {
-    return Array.from(new Set(filteredData.map(m => m.Pricing_Rationality))).sort();
+    const values = Array.from(new Set(filteredData.map(m => m.Pricing_Rationality).filter(Boolean))) as string[];
+    return sortByOrder(values, PRICING_ORDER);
   }, [filteredData]);
   
   const uniqueRiskMigration = useMemo(() => {
-    return Array.from(new Set(filteredData.map(m => m.Risk_Migration_Score))).sort();
+    const values = Array.from(new Set(filteredData.map(m => m.Risk_Migration_Score).filter(Boolean))) as string[];
+    return sortByOrder(values, RISK_ORDER);
   }, [filteredData]);
   
   const uniqueRelRiskMig = useMemo(() => {
-    return Array.from(new Set(filteredData.map(m => m.Relative_Risk_Migration_Score))).sort();
+    const values = Array.from(new Set(filteredData.map(m => m.Relative_Risk_Migration_Score).filter(Boolean))) as string[];
+    return sortByOrder(values, REL_RISK_MIG_ORDER);
   }, [filteredData]);
   
   const uniquePremiumDisc = useMemo(() => {
-    return Array.from(new Set(filteredData.map(m => m.Premium_Discount_Score))).sort();
+    const values = Array.from(new Set(filteredData.map(m => m.Premium_Discount_Score).filter(Boolean))) as string[];
+    return sortByOrder(values, PREMIUM_DISC_ORDER);
   }, [filteredData]);
   
   const uniqueIntlCM = useMemo(() => {
-    return Array.from(new Set(filteredData.map(m => m.International_CM_Score))).sort();
+    const values = Array.from(new Set(filteredData.map(m => m.International_CM_Score).filter(Boolean))) as string[];
+    return sortByOrder(values, HIGH_LOW_ORDER);
   }, [filteredData]);
   
   // Clear all filters
@@ -884,7 +940,7 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
 
             {/* Metrics Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {/* Credit & Cash Management Market Size */}
+              {/* Credit & Cash Management Revenue */}
               <div className="bg-white rounded-lg p-3 border border-slate-100 shadow-sm">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs text-slate-500">Credit & Cash Management</span>
@@ -895,10 +951,10 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
                     {formatMarketSize(totalCashManagementMarketSize)}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">Market Size</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Revenue</p>
               </div>
 
-              {/* Deposits Market Size */}
+              {/* Deposits Balances */}
               <div className="bg-white rounded-lg p-3 border border-slate-100 shadow-sm">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs text-slate-500">Deposits</span>
@@ -909,7 +965,7 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
                     {formatMarketSize(totalDepositsMarketSize)}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">Market Size</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Balances</p>
               </div>
 
               {/* Number of Companies */}
@@ -1452,7 +1508,7 @@ export function MSAExplorer({ data, weights, globalFilters, bucketAssignments, b
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-2 px-2 text-xs font-medium">Rank</th>
+                    <th className="text-left py-2 px-2 text-xs font-medium">No.</th>
                     <th className="text-left py-2 px-2 text-xs font-medium">
                       <button 
                         onClick={() => handleSort("msa")}

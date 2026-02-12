@@ -130,9 +130,12 @@ export function MSAEconomicProfile({ economics, msaName }: MSAEconomicProfilePro
     <Card className="p-4 bg-gradient-to-br from-slate-50 to-white border-slate-200">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Building2 className="h-5 w-5 text-slate-600" />
-          <h3 className="font-semibold text-slate-800">MSA Economic Profile</h3>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-slate-600" />
+            <h3 className="font-semibold text-slate-800">MSA Economic Profile</h3>
+          </div>
+          <p className="text-xs text-slate-500">Metrics relative to national average</p>
         </div>
       </div>
 
@@ -265,7 +268,7 @@ export function MSAEconomicProfileCompact({ economics }: MSAEconomicProfileCompa
     <div className="bg-slate-50 rounded-lg p-2 border border-slate-200">
       <div className="text-[10px] font-medium text-slate-500 mb-1.5 flex items-center gap-1">
         <Building2 className="h-3 w-3" />
-        Economic Indicators <span className="text-[9px] font-normal text-slate-400">(% changes are YoY)</span>
+        Economic Indicators <span className="text-[9px] font-normal text-slate-400">(% changes are YoY · relative to national average)</span>
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         {/* GDP */}
