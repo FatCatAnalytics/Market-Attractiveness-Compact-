@@ -678,7 +678,7 @@ export function AcquisitionAnalysis({
               <div>
                 <h2 className="mb-1">Proforma Acquisition Analysis</h2>
                 <p className="text-sm text-muted-foreground">
-                  Select franchises from the "Analyse a Competitor" tab to begin analysis
+                  Select banks from the "Analyse a Competitor" tab to begin analysis
                 </p>
               </div>
             </div>
@@ -693,9 +693,9 @@ export function AcquisitionAnalysis({
               <Building2 className="h-8 w-8 text-muted-foreground" />
             </div>
             <div>
-              <h3 className="mb-2">No Franchises Selected</h3>
+              <h3 className="mb-2">No Banks Selected</h3>
               <p className="text-muted-foreground max-w-md mx-auto">
-                Go to the "Analyse a Competitor" tab, select the franchises you want to analyze, and click "Analyze Selected" to begin your proforma acquisition analysis.
+                Go to the "Analyse a Competitor" tab, select the banks you want to analyze, and click "Analyze Selected" to begin your proforma acquisition analysis.
               </p>
             </div>
             <Button onClick={onBack} variant="default" className="mt-4">
@@ -720,7 +720,7 @@ export function AcquisitionAnalysis({
             <div>
               <h2 className="mb-1">Proforma Acquisition Analysis</h2>
               <p className="text-sm text-muted-foreground">
-                Analyze the acquisition of {selectedFranchises.length} selected franchise{selectedFranchises.length !== 1 ? 's' : ''}
+                Analyze the acquisition of {selectedFranchises.length} selected bank{selectedFranchises.length !== 1 ? 's' : ''}
               </p>
             </div>
           </div>
@@ -734,9 +734,9 @@ export function AcquisitionAnalysis({
       <Card className="p-6">
         <div className="space-y-4">
           <div>
-            <h3 className="mb-1">Who is acquiring these franchises?</h3>
+            <h3 className="mb-1">Who is acquiring these banks?</h3>
             <p className="text-sm text-muted-foreground">
-              Select the provider to view their current footprint across the top 50 MSAs
+              Select the bank to view their current footprint across the top 50 MSAs
             </p>
           </div>
           
@@ -749,7 +749,7 @@ export function AcquisitionAnalysis({
                   aria-expanded={acquirerComboboxOpen}
                   className="w-full justify-between h-12"
                 >
-                  {acquiringProvider || "Select acquiring provider..."}
+                  {acquiringProvider || "Select acquiring bank..."}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -799,7 +799,7 @@ export function AcquisitionAnalysis({
             <div>
               <h3 className="mb-1">Acquisition Impact Analysis: Before & After</h3>
               <p className="text-sm text-muted-foreground">
-                Compare {acquiringProvider}'s current national position with the impact of each franchise acquisition
+                Compare {acquiringProvider}'s current national position with the impact of each bank acquisition
               </p>
             </div>
 
@@ -997,11 +997,11 @@ export function AcquisitionAnalysis({
                     <div className="flex items-center justify-between">
                       <h4 className="font-medium flex items-center gap-2">
                         <Badge className="bg-green-100 text-green-800 border-green-300">AFTER</Badge>
-                        Impact of Each Franchise Acquisition
+                        Impact of Each Bank Acquisition
                       </h4>
                       {!selectedFranchise && (
                         <p className="text-sm text-muted-foreground italic">
-                          Click a franchise card to view detailed impact analysis
+                          Click a bank card to view detailed impact analysis
                         </p>
                       )}
                     </div>
@@ -1016,7 +1016,7 @@ export function AcquisitionAnalysis({
                               ? 'border-green-500 ring-2 ring-green-300 shadow-lg' 
                               : 'border-green-300 hover:border-green-400'
                           }`}>
-                          {/* Franchise Details */}
+                          {/* Bank Details */}
                           <div className="pb-3 border-b border-green-200">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
@@ -1281,7 +1281,7 @@ export function AcquisitionAnalysis({
             <div>
               <h3 className="mb-0">Recent News & Updates</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Latest news articles about the franchises being acquired (last 30 days)
+                Latest news articles about the banks being acquired (last 30 days)
               </p>
             </div>
           </div>

@@ -416,7 +416,7 @@ export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData =
                                 e.stopPropagation();
                               }}
                             >
-                              Provider
+                              Bank
                               {selectedProviderFilter.size > 0 && (
                                 <Badge variant="secondary" className="ml-2 text-[10px]">
                                   {selectedProviderFilter.size}
@@ -426,9 +426,9 @@ export function OpportunitiesTable({ globalFilters, bucketAssignments, mapData =
                           </PopoverTrigger>
                           <PopoverContent className="w-[300px] p-0" align="start">
                             <Command>
-                              <CommandInput placeholder="Search providers..." />
-                              <CommandList>
-                                <CommandEmpty>No providers found.</CommandEmpty>
+                              <CommandInput placeholder="Search banks..." />
+                  <CommandList>
+                    <CommandEmpty>No banks found.</CommandEmpty>
                                 <CommandGroup>
                                   <CommandItem
                                     onSelect={() => {

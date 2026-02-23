@@ -3,7 +3,6 @@ import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { StrategicInsights } from "./StrategicInsights";
 import { geoPath, geoAlbersUsa } from "d3-geo";
 import { feature } from "topojson-client";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
@@ -481,7 +480,7 @@ export function USAMap({ mapData, globalFilters, bucketAssignments, selectedMSAs
                   {msaDetails.opportunities.length > 0 && (
                     <Card className="p-4">
                       <div className="space-y-3">
-                        <h3 className="font-medium">Top 5 Providers by Market Share</h3>
+                        <h3 className="font-medium">Top 5 Banks by Market Share</h3>
                         <div className="space-y-2">
                           {msaDetails.opportunities
                             .sort((a, b) => parseFloat(String(b["Market Share"] || 0)) - parseFloat(String(a["Market Share"] || 0)))
@@ -619,11 +618,6 @@ export function USAMap({ mapData, globalFilters, bucketAssignments, selectedMSAs
           </div>
           
           <div className="rounded-lg border border-gray-200 overflow-hidden relative" style={{ backgroundColor: '#FAFBFC' }}>
-            {/* Strategic Insights Panel */}
-            <div className="absolute top-4 left-4 z-10">
-              <StrategicInsights mapData={filteredMapData} />
-            </div>
-            
             <TransformWrapper
               initialScale={1}
               minScale={0.5}
@@ -732,10 +726,10 @@ export function USAMap({ mapData, globalFilters, bucketAssignments, selectedMSAs
                            {/* Top Providers */}
                            <div className="space-y-1.5">
                               <div className="font-semibold text-gray-900 flex items-center gap-1.5 text-xs uppercase tracking-wider border-b border-gray-100 pb-1">
-                                <TrendingUp className="w-3 h-3 text-gray-500" /> Top 5 Providers
+                                <TrendingUp className="w-3 h-3 text-gray-500" /> Top 5 Banks
                               </div>
                               {isLoadingHoverDetails ? (
-                                <div className="text-gray-400 italic text-[10px] py-1">Loading providers...</div>
+                                <div className="text-gray-400 italic text-[10px] py-1">Loading banks...</div>
                               ) : hoveredMSAProviders && hoveredMSAProviders.length > 0 ? (
                                 <div className="space-y-1">
                                   {hoveredMSAProviders.map((opp, idx) => (
@@ -746,7 +740,7 @@ export function USAMap({ mapData, globalFilters, bucketAssignments, selectedMSAs
                                   ))}
                                 </div>
                               ) : (
-                                <div className="text-gray-400 italic text-[10px] py-1">No provider data available</div>
+                                <div className="text-gray-400 italic text-[10px] py-1">No bank data available</div>
                               )}
                            </div>
                          </div>

@@ -24,7 +24,7 @@ export function SelectedProvidersPanel({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Building2 className="h-4 w-4 text-primary" />
-          <h4 className="font-semibold text-sm">Selected Providers</h4>
+          <h4 className="font-semibold text-sm">Selected Banks</h4>
           <Badge variant="secondary" className="text-xs">
             {selectedProviders.size}
           </Badge>
@@ -70,7 +70,7 @@ export function SelectedProvidersPanel({
       </Button>
 
       <p className="text-xs text-muted-foreground mt-2 text-center">
-        Click providers in any table to add them to your selection
+        Click banks in any table to add them to your selection
       </p>
     </Card>
   );

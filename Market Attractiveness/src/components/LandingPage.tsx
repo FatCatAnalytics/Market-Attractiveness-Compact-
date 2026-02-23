@@ -39,7 +39,7 @@ export function LandingPage({ onSelectModule }: LandingPageProps) {
         {/* Module Cards */}
         <div className="grid lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
           {/* Market Size & Share Tool */}
-          <Card className="group hover:shadow-xl transition-all duration-300 border-slate-200 bg-white overflow-hidden">
+          <Card className="group transition-all duration-300 border-slate-200 bg-white overflow-hidden opacity-60 grayscale hover:opacity-100 hover:grayscale-0 hover:shadow-xl">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <CardHeader className="space-y-4 relative pb-6">
               <div className="flex items-start justify-between">
